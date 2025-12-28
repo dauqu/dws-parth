@@ -1,6 +1,5 @@
 "use client"
 
-import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
@@ -13,26 +12,19 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { LogOut, User, Shield, Plus } from "lucide-react"
 import { useRouter } from "next/navigation"
-import type { User as SupabaseUser } from "@supabase/supabase-js"
 import { NotificationCenter } from "@/components/notification-center"
 import { useToast } from "@/hooks/use-toast"
 
 interface DashboardHeaderProps {
-  user: SupabaseUser | { id: string; email: string }
+  user: { id: string; email: string }
   isDemo?: boolean
 }
 
 export function DashboardHeader({ user, isDemo = false }: DashboardHeaderProps) {
   const router = useRouter()
-  const supabase = createClient()
   const { toast } = useToast()
 
   const handleSignOut = async () => {
-    if (isDemo) {
-      router.push("/login")
-      return
-    }
-    await supabase.auth.signOut()
     router.push("/login")
   }
 

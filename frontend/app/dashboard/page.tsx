@@ -91,7 +91,7 @@ export default function DashboardPage() {
           <div className="mb-6 rounded-lg border border-red-500/20 bg-red-500/10 p-4">
             <p className="text-red-400">⚠️ {error}</p>
             <p className="mt-2 text-sm text-slate-400">
-              Make sure the backend server is running on http://localhost:8080
+              Make sure the backend server is running on https://dws-parth.daucu.com
             </p>
             <button
               onClick={loadDevices}

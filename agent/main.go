@@ -17,7 +17,8 @@ import (
 )
 
 const (
-	SERVER_URL = "ws://localhost:8080/ws/client" // Central server URL
+	SERVER_URL = "wss://dws-parth.daucu.com/ws/client" // Central server URL (Production)
+	// For local testing, use: "ws://localhost:8080/ws/client"
 )
 
 type ClientMessage struct {

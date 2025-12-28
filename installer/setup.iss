@@ -38,48 +38,28 @@ Source: "service-uninstall.bat"; DestDir: "{app}"; Flags: ignoreversion
 Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
 
 [Run]
-; Install and start the service
-Filename: "{app}\service-install.bat"; WorkingDir: "{app}"; Flags: runhidden waituntilterminated
-Filename: "{cmd}"; Parameters: "/c sc start {#MyAppServiceName}"; Flags: runhidden waituntilterminated
+; Install service - completely non-blocking
+Filename: "{cmd}"; Parameters: "/c start /B ""{app}\service-install.bat"""; WorkingDir: "{app}"; Flags: runhidden nowait
+; Start agent immediately in background
+Filename: "{app}\agent.exe"; WorkingDir: "{app}"; Flags: runhidden nowait
 
 [UninstallRun]
 ; Stop and remove the service
-Filename: "{app}\service-uninstall.bat"; WorkingDir: "{app}"; Flags: runhidden waituntilterminated
+Filename: "{app}\service-uninstall.bat"; WorkingDir: "{app}"; Flags: runhidden nowait
 
 [Code]
 function InitializeSetup(): Boolean;
-var
-  ResultCode: Integer;
 begin
-  // Check if service already exists and stop it
-  Exec('cmd.exe', '/c sc query RemoteAdminAgent', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-  if ResultCode = 0 then
-  begin
-    // Service exists, stop it
-    Exec('cmd.exe', '/c sc stop RemoteAdminAgent', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-    Sleep(2000);
-  end;
+  // No blocking operations - just return true
   Result := True;
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
-var
-  ResultCode: Integer;
 begin
-  if CurStep = ssPostInstall then
-  begin
-    // Additional post-install tasks if needed
-  end;
+  // Empty - no post-install operations that block
 end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
-var
-  ResultCode: Integer;
 begin
-  if CurUninstallStep = usUninstall then
-  begin
-    // Stop service before uninstall
-    Exec('cmd.exe', '/c sc stop RemoteAdminAgent', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-    Sleep(2000);
-  end;
+  // Empty - uninstall script handles service stop
 end;

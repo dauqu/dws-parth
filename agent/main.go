@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"runtime"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -57,6 +58,7 @@ type DeviceInfo struct {
 type Agent struct {
 	conn     *websocket.Conn
 	deviceID string
+	writeMux sync.Mutex // Protect concurrent writes to WebSocket
 }
 
 func NewAgent() *Agent {
@@ -99,7 +101,9 @@ func (a *Agent) RegisterDevice() error {
 		Data:     deviceInfo,
 	}
 
+	a.writeMux.Lock()
 	err := a.conn.WriteJSON(msg)
+	a.writeMux.Unlock()
 	if err != nil {
 		return fmt.Errorf("failed to register device: %v", err)
 	}
@@ -164,6 +168,8 @@ func (a *Agent) SendSystemInfo() error {
 		Data:     info,
 	}
 
+	a.writeMux.Lock()
+	defer a.writeMux.Unlock()
 	return a.conn.WriteJSON(msg)
 }
 
@@ -177,6 +183,8 @@ func (a *Agent) SendHeartbeat() error {
 		},
 	}
 
+	a.writeMux.Lock()
+	defer a.writeMux.Unlock()
 	return a.conn.WriteJSON(msg)
 }
 
@@ -220,7 +228,9 @@ func (a *Agent) ListenForCommands() {
 				DeviceID: a.deviceID,
 				Data:     response,
 			}
+			a.writeMux.Lock()
 			a.conn.WriteJSON(responseMsg)
+			a.writeMux.Unlock()
 		}
 	}
 }

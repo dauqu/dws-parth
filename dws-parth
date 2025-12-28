@@ -29,3 +29,27 @@ sudo nano /etc/nginx/sites-available/dws-parth.daucu.com
 sudo ln -s /etc/nginx/sites-available/dws-parth.daucu.com /etc/nginx/sites-enabled/
 
 sudo certbot --nginx -d dws-parth.daucu.com
+
+
+
+
+[Unit]
+Description=My Background Executable
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/harshaweb/dws-parth/bin/
+ExecStart=/home/harshaweb/dws-parth/bin/server_hub
+Restart=always
+RestartSec=5
+Environment=PORT=8080
+
+[Install]
+WantedBy=multi-user.target
+
+
+
+
+/home/harshaweb/dws-parth/bin/server_hub

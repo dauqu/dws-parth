@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Quick Test</title>
+    <style>
+        body { font-family: Arial; padding: 20px; background: #f0f0f0; }
+        .status { padding: 10px; margin: 10px 0; background: #fff; border-radius: 4px; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>Server Connection Test</h1>
+    <button onclick="testConnection()">Test Connection</button>
+    <button onclick="testSystemInfo()">Test System Info</button>
+    <button onclick="testServices()">Test Services</button>
+    <button onclick="testScreen()">Test Screen Capture</button>
+    <div id="output" class="status"></div>
+
+    <script>
+        let ws;
+        const output = document.getElementById('output');
+
+        function testConnection() {
+            output.innerHTML = 'Connecting...';
+            ws = new WebSocket('ws://localhost:8080/ws');
+            
+            ws.onopen = () => {
+                output.innerHTML = '<span style="color:green">✓ Connected successfully!</span>';
+            };
+            
+            ws.onerror = (error) => {
+                output.innerHTML = '<span style="color:red">✗ Connection failed</span>';
+            };
+            
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                output.innerHTML += '<br><pre>' + JSON.stringify(data, null, 2) + '</pre>';
+            };
+        }
+
+        function testSystemInfo() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                output.innerHTML = 'Not connected. Click "Test Connection" first.';
+                return;
+            }
+            
+            output.innerHTML = 'Requesting system info...';
+            ws.send(JSON.stringify({ type: 'system_info', data: null }));
+        }
+
+        function testServices() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                output.innerHTML = 'Not connected. Click "Test Connection" first.';
+                return;
+            }
+            
+            output.innerHTML = 'Requesting services list...';
+            ws.send(JSON.stringify({ 
+                type: 'service_operation', 
+                data: { action: 'list' }
+            }));
+        }
+
+        function testScreen() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                output.innerHTML = 'Not connected. Click "Test Connection" first.';
+                return;
+            }
+            
+            output.innerHTML = 'Requesting screen capture...';
+            ws.send(JSON.stringify({ type: 'screen_capture', data: null }));
+        }
+    </script>
+</body>
+</html>

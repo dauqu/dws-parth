@@ -1,0 +1,26 @@
+[Unit]
+Description=DWS Parth Remote Admin Server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/dws-parth
+ExecStart=/home/ubuntu/dws-parth/server/dws-server -hub
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=dws-server
+
+# Security and resource limits
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=partial
+ProtectHome=true
+ReadWritePaths=/home/ubuntu/.config/dws-agent
+
+[Install]
+WantedBy=multi-user.target

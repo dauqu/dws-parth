@@ -3,9 +3,9 @@
 
 #define MyAppName "Remote Admin Agent"
 #define MyAppVersion "1.0.0"
-#define MyAppPublisher "Your Company"
-#define MyAppURL "http://localhost:8080"
-#define MyAppExeName "agent.exe"
+#define MyAppPublisher "Remote Admin"
+#define MyAppURL "https://dws-parth.daucu.com"
+#define MyAppExeName "dws-agent.exe"
 #define MyAppServiceName "RemoteAdminAgent"
 
 [Setup]
@@ -23,6 +23,7 @@ Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
 PrivilegesRequired=admin
+AllowNoIcons=yes
 ; SetupIconFile will use default icon if not specified
 ; UninstallDisplayIcon will use the exe icon
 
@@ -30,24 +31,28 @@ PrivilegesRequired=admin
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
-Source: "..\bin\agent.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "service-install.bat"; DestDir: "{app}"; Flags: ignoreversion
-Source: "service-uninstall.bat"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\agent\dws-agent.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\installer\service-install.bat"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\installer\service-uninstall.bat"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
+Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
 
 [Run]
-; Install service - completely non-blocking
-Filename: "{cmd}"; Parameters: "/c start /B ""{app}\service-install.bat"""; WorkingDir: "{app}"; Flags: runhidden nowait
-; Start agent immediately in background
-Filename: "{app}\agent.exe"; WorkingDir: "{app}"; Flags: runhidden nowait
+; Start agent immediately in background (without service)
+Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; Flags: runhidden nowait
 
 [UninstallRun]
-; Stop and remove the service
-Filename: "{app}\service-uninstall.bat"; WorkingDir: "{app}"; Flags: runhidden nowait
+; Stop any running agent processes before uninstalling
+Filename: "{cmd}"; Parameters: "/c taskkill /F /IM {#MyAppExeName}"; Flags: runhidden nowait
+
+[Registry]
+; Add to Windows Startup - Run on boot
+Root: HKA; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "{#MyAppName}"; ValueData: """{app}\{#MyAppExeName}"""; Flags: uninsdeletevalue
 
 [Code]
+
 function InitializeSetup(): Boolean;
 begin
   // No blocking operations - just return true

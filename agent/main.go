@@ -20,8 +20,8 @@ import (
 )
 
 const (
-	SERVER_URL = "ws://localhost:8080/ws/client" // Local testing
-	// For production, use: "wss://dws-parth.daucu.com/ws/client"
+	SERVER_URL = "wss://dws-parth.daucu.com/ws/client" // Production
+	// For local testing, use: "ws://localhost:8080/ws/client"
 )
 
 type ClientMessage struct {

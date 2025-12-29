@@ -212,10 +212,12 @@ func HandleAPIServices(w http.ResponseWriter, r *http.Request) {
 // Group API Handlers
 
 func HandleAPIGetGroups(w http.ResponseWriter, r *http.Request) {
+	log.Printf("📍 HandleAPIGetGroups called - Method: %s, Path: %s", r.Method, r.RequestURI)
 	w.Header().Set("Content-Type", "application/json")
 
 	// Check if database is available
 	if !IsDatabaseConnected() {
+		log.Printf("⚠️  Database not connected for groups request")
 		w.WriteHeader(http.StatusServiceUnavailable)
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"success": false,
@@ -225,6 +227,7 @@ func HandleAPIGetGroups(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log.Printf("✅ Database connected, fetching groups...")
 	groups, err := GetAllGroups("default_user")
 	if err != nil {
 		http.Error(w, fmt.Sprintf(`{"error": "%s"}`, err.Error()), http.StatusInternalServerError)

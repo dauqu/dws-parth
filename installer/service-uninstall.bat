@@ -1,17 +1,14 @@
 @echo off
 REM Uninstall Remote Admin Agent Windows Service
 
-echo Stopping Remote Admin Agent Service...
-sc stop RemoteAdminAgent
+REM Stop the service
+sc stop RemoteAdminAgent >nul 2>&1
 timeout /t 3 /nobreak >nul
 
-echo Removing service...
-sc delete RemoteAdminAgent
+REM Kill any running agent processes
+taskkill /F /IM dws-agent.exe >nul 2>&1
 
-if %ERRORLEVEL% EQU 0 (
-    echo Service removed successfully!
-) else (
-    echo Failed to remove service or service does not exist.
-)
+REM Remove the service
+sc delete RemoteAdminAgent >nul 2>&1
 
 exit /b 0

@@ -17,6 +17,7 @@ import (
 	"github.com/shirou/gopsutil/v3/disk"
 	"github.com/shirou/gopsutil/v3/host"
 	"github.com/shirou/gopsutil/v3/mem"
+	"golang.org/x/sys/windows/svc"
 )
 
 const (
@@ -556,18 +557,93 @@ func getWallpaperPath() string {
 	return "https://images.unsplash.com/photo-1614624532983-4ce03382d63d?w=800&q=80"
 }
 
-func main() {
-	log.Println("🖥️  Remote Admin Agent Starting...")
-	log.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+// Windows Service implementation
+type agentService struct {
+	agent *Agent
+}
 
-	agent := NewAgent()
+func (s *agentService) Execute(args []string, r <-chan svc.ChangeRequest, changes chan<- svc.Status) (ssec bool, errno uint32) {
+	const cmdsAccepted = svc.AcceptStop | svc.AcceptShutdown
+	changes <- svc.Status{State: svc.StartPending}
 
-	// Connect to central server
-	if err := agent.Connect(); err != nil {
-		log.Fatalf("❌ Failed to connect: %v", err)
+	// Start agent in a goroutine
+	go func() {
+		log.Println("🖥️  Remote Admin Agent Starting...")
+		log.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
+		s.agent = NewAgent()
+
+		// Connect to central server
+		if err := s.agent.Connect(); err != nil {
+			log.Printf("❌ Failed to connect: %v", err)
+			return
+		}
+		defer s.agent.conn.Close()
+
+		// Run agent
+		s.agent.Run()
+	}()
+
+	changes <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
+
+	// Wait for service stop/shutdown request
+	for {
+		select {
+		case c := <-r:
+			switch c.Cmd {
+			case svc.Interrogate:
+				changes <- c.CurrentStatus
+			case svc.Stop, svc.Shutdown:
+				changes <- svc.Status{State: svc.StopPending}
+				if s.agent != nil && s.agent.conn != nil {
+					s.agent.conn.Close()
+				}
+				return false, 0
+			}
+		}
 	}
-	defer agent.conn.Close()
+}
 
-	// Run agent
-	agent.Run()
+func runService() error {
+	return svc.Run("RemoteAdminAgent", &agentService{})
+}
+
+func main() {
+	// Check if running as Windows service
+	isService, err := svc.IsWindowsService()
+	if err != nil {
+		log.Fatalf("Failed to determine if running as service: %v", err)
+	}
+
+	if isService {
+		// Running as Windows service - no console output visible
+		// Setup log file
+		logDir := filepath.Join(os.Getenv("ProgramData"), "Remote Admin Agent")
+		os.MkdirAll(logDir, 0755)
+		logFile, err := os.OpenFile(filepath.Join(logDir, "agent.log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+		if err == nil {
+			log.SetOutput(logFile)
+			defer logFile.Close()
+		}
+
+		err = runService()
+		if err != nil {
+			log.Fatalf("Service failed: %v", err)
+		}
+	} else {
+		// Running as console application (for testing)
+		log.Println("🖥️  Remote Admin Agent Starting...")
+		log.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
+		agent := NewAgent()
+
+		// Connect to central server
+		if err := agent.Connect(); err != nil {
+			log.Fatalf("❌ Failed to connect: %v", err)
+		}
+		defer agent.conn.Close()
+
+		// Run agent
+		agent.Run()
+	}
 }

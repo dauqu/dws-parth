@@ -38,10 +38,12 @@ This installer creates a Windows service that runs the Remote Admin Agent in the
 
 1. **Installs the agent** to `C:\Program Files\Remote Admin Agent\`
 2. **Creates a Windows Service** named "RemoteAdminAgent"
-3. **Configures auto-start** on system boot
+3. **Configures auto-start** on system boot (automatic startup)
 4. **Starts the service** immediately after installation
 5. **Configures automatic restart** if the service crashes
 6. **Runs as Local System** account for full privileges
+7. **Runs in background** - no console window visible
+8. **Logs to file** at `C:\ProgramData\Remote Admin Agent\agent.log`
 
 ## Installation
 

@@ -40,16 +40,12 @@ Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
 
 [Run]
-; Start agent immediately in background (without service)
-Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; Flags: runhidden nowait
+; Install and start Windows service using the batch file
+Filename: "{app}\service-install.bat"; WorkingDir: "{app}"; Flags: runhidden nowait
 
 [UninstallRun]
-; Stop any running agent processes before uninstalling
-Filename: "{cmd}"; Parameters: "/c taskkill /F /IM {#MyAppExeName}"; Flags: runhidden nowait
-
-[Registry]
-; Add to Windows Startup - Run on boot
-Root: HKA; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "{#MyAppName}"; ValueData: """{app}\{#MyAppExeName}"""; Flags: uninsdeletevalue
+; Stop and remove service before uninstalling
+Filename: "{app}\service-uninstall.bat"; WorkingDir: "{app}"; Flags: runhidden
 
 [Code]
 

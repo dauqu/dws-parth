@@ -17,11 +17,11 @@ if %ERRORLEVEL% NEQ 0 (
 )
 
 REM Check if agent.exe exists
-if not exist "..\bin\agent.exe" (
-    echo ERROR: agent.exe not found in ..\bin\
+if not exist "..\bin\dws-agent.exe" (
+    echo ERROR: dws-agent.exe not found in ..\bin\
     echo Please build the agent first:
     echo   cd ..\agent
-    echo   go build -o ..\bin\agent.exe .
+    echo   go build -ldflags="-H windowsgui" -o ..\bin\dws-agent.exe .
     pause
     exit /b 1
 )
@@ -31,8 +31,8 @@ set INSTALL_DIR=C:\Program Files\Remote Admin Agent
 echo Creating directory: %INSTALL_DIR%
 if not exist "%INSTALL_DIR%" mkdir "%INSTALL_DIR%"
 
-echo Copying agent.exe...
-copy /Y "..\bin\agent.exe" "%INSTALL_DIR%\agent.exe"
+echo Copying dws-agent.exe...
+copy /Y "..\bin\dws-agent.exe" "%INSTALL_DIR%\dws-agent.exe"
 
 REM Install service
 echo.
@@ -50,7 +50,7 @@ if %ERRORLEVEL% EQU 0 (
 )
 
 REM Create service
-sc create RemoteAdminAgent binPath= "\"%INSTALL_DIR%\agent.exe\"" DisplayName= "Remote Admin Agent" start= auto
+sc create RemoteAdminAgent binPath= "\"%INSTALL_DIR%\dws-agent.exe\"" DisplayName= "Remote Admin Agent" start= auto
 
 REM Set description
 sc description RemoteAdminAgent "Remote administration agent for monitoring and controlling Windows devices"

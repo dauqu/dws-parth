@@ -20,13 +20,14 @@ if not exist %INNO_PATH% (
 )
 
 REM Check if agent.exe exists
-if not exist "..\bin\agent.exe" (
-    echo ERROR: agent.exe not found!
+if not exist "..\bin\dws-agent.exe" (
+    echo ERROR: dws-agent.exe not found!
     echo Building agent...
     cd ..\agent
-    go build -o ..\bin\agent.exe .
+    REM Build with -ldflags to hide console window on Windows
+    go build -ldflags="-H windowsgui" -o ..\bin\dws-agent.exe .
     cd ..\installer
-    if not exist "..\bin\agent.exe" (
+    if not exist "..\bin\dws-agent.exe" (
         echo Failed to build agent!
         pause
         exit /b 1

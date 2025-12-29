@@ -214,6 +214,17 @@ func HandleAPIServices(w http.ResponseWriter, r *http.Request) {
 func HandleAPIGetGroups(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
+	// Check if database is available
+	if !IsDatabaseConnected() {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "Database not connected. Groups feature requires MongoDB.",
+			"data":    []Group{},
+		})
+		return
+	}
+
 	groups, err := GetAllGroups("default_user")
 	if err != nil {
 		http.Error(w, fmt.Sprintf(`{"error": "%s"}`, err.Error()), http.StatusInternalServerError)
@@ -228,6 +239,16 @@ func HandleAPIGetGroups(w http.ResponseWriter, r *http.Request) {
 
 func HandleAPICreateGroup(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+
+	// Check if database is available
+	if !IsDatabaseConnected() {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "Database not connected. Groups feature requires MongoDB.",
+		})
+		return
+	}
 
 	var req struct {
 		Name        string `json:"name"`
@@ -260,6 +281,16 @@ func HandleAPICreateGroup(w http.ResponseWriter, r *http.Request) {
 func HandleAPIGetGroup(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
+	// Check if database is available
+	if !IsDatabaseConnected() {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "Database not connected. Groups feature requires MongoDB.",
+		})
+		return
+	}
+
 	vars := mux.Vars(r)
 	groupID := vars["id"]
 
@@ -277,6 +308,16 @@ func HandleAPIGetGroup(w http.ResponseWriter, r *http.Request) {
 
 func HandleAPIUpdateGroup(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+
+	// Check if database is available
+	if !IsDatabaseConnected() {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "Database not connected. Groups feature requires MongoDB.",
+		})
+		return
+	}
 
 	vars := mux.Vars(r)
 	groupID := vars["id"]
@@ -306,6 +347,16 @@ func HandleAPIUpdateGroup(w http.ResponseWriter, r *http.Request) {
 func HandleAPIDeleteGroup(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
+	// Check if database is available
+	if !IsDatabaseConnected() {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "Database not connected. Groups feature requires MongoDB.",
+		})
+		return
+	}
+
 	vars := mux.Vars(r)
 	groupID := vars["id"]
 
@@ -323,7 +374,16 @@ func HandleAPIDeleteGroup(w http.ResponseWriter, r *http.Request) {
 
 func HandleAPIGetGroupDevices(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-
+	// Check if database is available
+	if !IsDatabaseConnected() {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "Database not connected. Groups feature requires MongoDB.",
+			"data":    []interface{}{},
+		})
+		return
+	}
 	vars := mux.Vars(r)
 	groupName := vars["name"]
 

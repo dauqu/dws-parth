@@ -54,3 +54,8 @@ func CloseDatabase() {
 		}
 	}
 }
+
+// IsDatabaseConnected returns true if MongoDB is connected
+func IsDatabaseConnected() bool {
+	return mongoClient != nil && groupsCollection != nil
+}

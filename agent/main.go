@@ -20,10 +20,9 @@ import (
 	"golang.org/x/sys/windows/svc"
 )
 
-const (
-	SERVER_URL = "wss://dws-parth.daucu.com/ws/client" // Production
-	// For local testing, use: "ws://localhost:8080/ws/client"
-)
+// Server URL - can be overridden at build time using:
+// go build -ldflags="-X main.SERVER_URL=ws://localhost:8080/ws/client"
+var SERVER_URL = "wss://dws-parth.daucu.com/ws/client"
 
 type ClientMessage struct {
 	Type     string      `json:"type"`
@@ -311,6 +310,14 @@ func (a *Agent) ListenForCommands() {
 			switch cmdType {
 			case "file_operation":
 				responseType = "file_response"
+			case "file_download":
+				responseType = "file_download_response"
+			case "file_upload":
+				responseType = "file_upload_response"
+			case "file_read":
+				responseType = "file_read_response"
+			case "file_write":
+				responseType = "file_write_response"
 			case "service_operation":
 				responseType = "service_response"
 			case "software_operation":
@@ -406,6 +413,81 @@ func (a *Agent) HandleCommand(cmdType string, data interface{}) interface{} {
 		json.Unmarshal(response, &result)
 		return result
 
+	case "file_download":
+		// Handle file download request
+		var downloadData map[string]interface{}
+		json.Unmarshal(dataJSON, &downloadData)
+		path, _ := downloadData["path"].(string)
+		filename, _ := downloadData["filename"].(string)
+
+		op := FileOperation{
+			Action:   "download",
+			Path:     path,
+			Filename: filename,
+		}
+		response := HandleFileOperation(op)
+		return response
+
+	case "file_upload":
+		// Handle file upload request
+		var uploadData map[string]interface{}
+		json.Unmarshal(dataJSON, &uploadData)
+		path, _ := uploadData["path"].(string)
+		filename, _ := uploadData["filename"].(string)
+		content, _ := uploadData["content"].(string)
+
+		op := FileOperation{
+			Action:   "upload",
+			Path:     path,
+			Filename: filename,
+			Content:  content,
+		}
+		response := HandleFileOperation(op)
+		return response
+
+	case "file_read":
+		// Handle file read request (for viewing/editing)
+		var readData map[string]interface{}
+		json.Unmarshal(dataJSON, &readData)
+		path, _ := readData["path"].(string)
+
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return map[string]interface{}{
+				"success": false,
+				"message": fmt.Sprintf("Failed to read file: %v", err),
+			}
+		}
+
+		return map[string]interface{}{
+			"success":  true,
+			"data":     string(content),
+			"path":     filepath.Dir(path),
+			"filename": filepath.Base(path),
+		}
+
+	case "file_write":
+		// Handle file write request (for saving edited files)
+		var writeData map[string]interface{}
+		json.Unmarshal(dataJSON, &writeData)
+		path, _ := writeData["path"].(string)
+		content, _ := writeData["content"].(string)
+
+		err := os.WriteFile(path, []byte(content), 0644)
+		if err != nil {
+			return map[string]interface{}{
+				"success": false,
+				"message": fmt.Sprintf("Failed to write file: %v", err),
+			}
+		}
+
+		return map[string]interface{}{
+			"success":  true,
+			"message":  "File saved successfully",
+			"path":     filepath.Dir(path),
+			"filename": filepath.Base(path),
+		}
+
 	case "service_operation":
 		response, err := HandleServiceOperationJSON(dataJSON)
 		if err != nil {
@@ -431,7 +513,23 @@ func (a *Agent) HandleCommand(cmdType string, data interface{}) interface{} {
 		return result
 
 	case "screen_capture":
-		capture, err := CaptureScreen()
+		// Parse screen capture options
+		var captureData map[string]interface{}
+		json.Unmarshal(dataJSON, &captureData)
+
+		options := ScreenCaptureOptions{
+			Quality:    60,   // Default quality
+			ShowCursor: true, // Default to showing cursor
+		}
+
+		if q, ok := captureData["quality"].(float64); ok {
+			options.Quality = int(q)
+		}
+		if sc, ok := captureData["show_cursor"].(bool); ok {
+			options.ShowCursor = sc
+		}
+
+		capture, err := CaptureScreenWithOptions(options)
 		if err != nil {
 			return map[string]interface{}{
 				"success": false,
@@ -439,10 +537,12 @@ func (a *Agent) HandleCommand(cmdType string, data interface{}) interface{} {
 			}
 		}
 		return map[string]interface{}{
-			"success": true,
-			"image":   capture.Image,
-			"width":   capture.Width,
-			"height":  capture.Height,
+			"success":  true,
+			"image":    capture.Image,
+			"width":    capture.Width,
+			"height":   capture.Height,
+			"cursor_x": capture.CursorX,
+			"cursor_y": capture.CursorY,
 		}
 
 	case "shell_command":

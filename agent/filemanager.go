@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"io"
 	"io/ioutil"
@@ -18,16 +19,19 @@ type FileInfo struct {
 }
 
 type FileOperation struct {
-	Action  string `json:"action"` // list, read, create, delete, write
-	Path    string `json:"path"`
-	Content string `json:"content,omitempty"`
-	NewPath string `json:"new_path,omitempty"`
+	Action   string `json:"action"` // list, read, create, delete, write, download, upload
+	Path     string `json:"path"`
+	Content  string `json:"content,omitempty"`
+	NewPath  string `json:"new_path,omitempty"`
+	Filename string `json:"filename,omitempty"`
 }
 
 type FileResponse struct {
-	Success bool        `json:"success"`
-	Message string      `json:"message"`
-	Data    interface{} `json:"data,omitempty"`
+	Success  bool        `json:"success"`
+	Message  string      `json:"message"`
+	Data     interface{} `json:"data,omitempty"`
+	Content  string      `json:"content,omitempty"`
+	Filename string      `json:"filename,omitempty"`
 }
 
 func ListFiles(dirPath string) ([]FileInfo, error) {
@@ -142,6 +146,34 @@ func HandleFileOperation(op FileOperation) FileResponse {
 			return FileResponse{Success: false, Message: err.Error()}
 		}
 		return FileResponse{Success: true, Message: "File copied successfully"}
+
+	case "download":
+		// Read file and encode to base64 for transmission
+		content, err := ioutil.ReadFile(op.Path)
+		if err != nil {
+			return FileResponse{Success: false, Message: err.Error()}
+		}
+		encoded := base64.StdEncoding.EncodeToString(content)
+		filename := filepath.Base(op.Path)
+		return FileResponse{
+			Success:  true,
+			Message:  "File downloaded successfully",
+			Content:  encoded,
+			Filename: filename,
+		}
+
+	case "upload":
+		// Decode base64 content and write to file
+		decoded, err := base64.StdEncoding.DecodeString(op.Content)
+		if err != nil {
+			return FileResponse{Success: false, Message: "Failed to decode file content: " + err.Error()}
+		}
+		fullPath := filepath.Join(op.Path, op.Filename)
+		err = ioutil.WriteFile(fullPath, decoded, 0644)
+		if err != nil {
+			return FileResponse{Success: false, Message: err.Error()}
+		}
+		return FileResponse{Success: true, Message: "File uploaded successfully"}
 
 	default:
 		return FileResponse{Success: false, Message: "Unknown action"}

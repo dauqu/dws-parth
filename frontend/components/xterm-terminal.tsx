@@ -4,8 +4,9 @@ import { useEffect, useRef, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Terminal, Trash2, Power } from "lucide-react"
+import { Terminal, Trash2, Power, Maximize2, Minimize2, Expand, Download, Send } from "lucide-react"
 import { API_ENDPOINTS } from "@/lib/api-config"
 import { Terminal as XTerm } from "@xterm/xterm"
 import { FitAddon } from "@xterm/addon-fit"
@@ -20,6 +21,10 @@ interface XtermTerminalProps {
 export function XtermTerminal({ deviceId, userId }: XtermTerminalProps) {
   const [shellType, setShellType] = useState<"powershell" | "cmd">("powershell")
   const [isConnected, setIsConnected] = useState(false)
+  const [isMaximized, setIsMaximized] = useState(false)
+  const [isFullScreen, setIsFullScreen] = useState(false)
+  const [commandInput, setCommandInput] = useState("")
+  const [history, setHistory] = useState<string[]>([])
   const terminalRef = useRef<HTMLDivElement>(null)
   const xtermRef = useRef<XTerm | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
@@ -211,8 +216,65 @@ export function XtermTerminal({ deviceId, userId }: XtermTerminalProps) {
     }
   }
 
+  const toggleMaximize = () => {
+    setIsMaximized(!isMaximized)
+    if (isFullScreen) setIsFullScreen(false)
+    setTimeout(() => fitAddonRef.current?.fit(), 100)
+  }
+
+  const toggleFullScreen = () => {
+    setIsFullScreen(!isFullScreen)
+    if (isMaximized) setIsMaximized(false)
+    setTimeout(() => fitAddonRef.current?.fit(), 100)
+  }
+
+  const handleCommandInputSubmit = () => {
+    if (!commandInput.trim() || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return
+
+    // Echo command in terminal
+    if (xtermRef.current) {
+      xtermRef.current.writeln(`\x1b[1;34m$\x1b[0m ${commandInput}`)
+    }
+
+    // Send command
+    wsRef.current.send(JSON.stringify({
+      type: "shell_command",
+      device_id: deviceId,
+      data: {
+        command: commandInput,
+        shell_type: shellType
+      }
+    }))
+
+    setHistory(prev => [...prev, commandInput])
+    setCommandInput("")
+  }
+
+  const handleQuickCommand = (cmd: string) => {
+    setCommandInput(cmd)
+  }
+
+  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      handleCommandInputSubmit()
+    }
+  }
+
+  const exportHistory = () => {
+    const historyText = history.join("\n")
+    const blob = new Blob([historyText], { type: "text/plain" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `shell-history-${shellType}-${new Date().toISOString()}.txt`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
   return (
-    <Card className="border-slate-800 bg-slate-900/50">
+    <Card className={`border-slate-800 bg-slate-900/50 ${isFullScreen ? 'fixed inset-0 z-50 rounded-none overflow-auto' : isMaximized ? 'fixed inset-4 z-50 overflow-auto' : ''}`}>
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="text-white flex items-center gap-2">
@@ -226,6 +288,43 @@ export function XtermTerminal({ deviceId, userId }: XtermTerminalProps) {
                 Connected
               </Badge>
             )}
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-slate-700 bg-slate-800 text-white hover:bg-slate-700"
+              onClick={toggleMaximize}
+              title={isMaximized ? "Restore" : "Expand"}
+            >
+              {isMaximized ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className={`border-slate-700 text-white hover:bg-slate-700 ${isFullScreen ? 'bg-blue-600 border-blue-600' : 'bg-slate-800'}`}
+              onClick={toggleFullScreen}
+              title={isFullScreen ? "Exit Full Screen" : "Full Screen"}
+            >
+              <Expand className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-slate-700 bg-slate-800 text-white hover:bg-slate-700"
+              onClick={exportHistory}
+              disabled={history.length === 0}
+            >
+              <Download className="mr-2 h-4 w-4" />
+              Export
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-red-700 bg-red-950/20 text-red-400 hover:bg-red-950/40"
+              onClick={handleClear}
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Clear
+            </Button>
           </div>
         </div>
       </CardHeader>
@@ -242,23 +341,58 @@ export function XtermTerminal({ deviceId, userId }: XtermTerminalProps) {
                 CMD
               </TabsTrigger>
             </TabsList>
-            <Button
-              variant="outline"
-              size="sm"
-              className="border-slate-700 bg-slate-800 text-white hover:bg-slate-700"
-              onClick={handleClear}
-            >
-              <Trash2 className="mr-2 h-4 w-4" />
-              Clear
-            </Button>
           </div>
 
-          <TabsContent value={shellType} className="mt-0">
+          <TabsContent value={shellType} className="mt-0 space-y-4">
             <div
               ref={terminalRef}
               className="rounded-lg border border-slate-800 bg-[#0a0e1a] p-4"
-              style={{ height: "500px" }}
+              style={{ height: isFullScreen ? "calc(100vh - 280px)" : isMaximized ? "calc(100vh - 340px)" : "400px" }}
             />
+
+            {/* Quick Commands */}
+            <div className="flex flex-wrap gap-2">
+              <span className="text-xs text-slate-500 mr-2 self-center">Quick:</span>
+              {(shellType === "powershell" 
+                ? ["dir", "Get-Service", "Get-Process", "systeminfo", "ipconfig", "hostname"]
+                : ["dir", "tasklist", "systeminfo", "ipconfig", "hostname", "whoami"]
+              ).map((cmd) => (
+                <Button
+                  key={cmd}
+                  variant="outline"
+                  size="sm"
+                  className="h-7 px-2 text-xs border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white"
+                  onClick={() => handleQuickCommand(cmd)}
+                >
+                  {cmd}
+                </Button>
+              ))}
+            </div>
+
+            {/* Command Input */}
+            <div className="flex items-center gap-2">
+              <div className="flex-1 flex items-center gap-2 bg-slate-950 border border-slate-700 rounded-lg p-3 focus-within:border-blue-500 transition-colors">
+                <span className="font-mono text-sm text-green-400 font-semibold whitespace-nowrap">
+                  {shellType === "powershell" ? "PS" : "C:\\>"}&gt;
+                </span>
+                <Input
+                  value={commandInput}
+                  onChange={(e) => setCommandInput(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  placeholder="Type your command here and press Enter..."
+                  className="border-0 bg-transparent text-blue-400 font-mono text-sm focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-slate-600"
+                />
+              </div>
+              <Button
+                onClick={handleCommandInputSubmit}
+                disabled={!commandInput.trim() || !isConnected}
+                className="bg-blue-600 hover:bg-blue-700 h-12 px-6"
+                size="lg"
+              >
+                <Send className="mr-2 h-4 w-4" />
+                Execute
+              </Button>
+            </div>
           </TabsContent>
         </Tabs>
       </CardContent>

@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Terminal, Trash2, Download } from "lucide-react"
+import { Terminal, Trash2, Download, Maximize2, Minimize2, Expand, Send } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { API_ENDPOINTS } from "@/lib/api-config"
 
@@ -28,6 +28,8 @@ export function ShellTerminal({ deviceId, userId }: ShellTerminalProps) {
   const [command, setCommand] = useState("")
   const [history, setHistory] = useState<ShellSession[]>([])
   const [isExecuting, setIsExecuting] = useState(false)
+  const [isMaximized, setIsMaximized] = useState(false)
+  const [isFullScreen, setIsFullScreen] = useState(false)
   const [ws, setWs] = useState<WebSocket | null>(null)
   const terminalRef = useRef<HTMLDivElement>(null)
   const { toast } = useToast()
@@ -229,6 +231,16 @@ hostname         - Display computer name`
     })
   }
 
+  const toggleMaximize = () => {
+    setIsMaximized(!isMaximized)
+    if (isFullScreen) setIsFullScreen(false)
+  }
+
+  const toggleFullScreen = () => {
+    setIsFullScreen(!isFullScreen)
+    if (isMaximized) setIsMaximized(false)
+  }
+
   const exportHistory = () => {
     const historyText = history
       .map((session) => {
@@ -254,7 +266,7 @@ hostname         - Display computer name`
   }
 
   return (
-    <Card className="border-slate-800 bg-slate-900/50">
+    <Card className={`border-slate-800 bg-slate-900/50 ${isFullScreen ? 'fixed inset-0 z-50 rounded-none overflow-auto' : isMaximized ? 'fixed inset-4 z-50 overflow-auto' : ''}`}>
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="text-white flex items-center gap-2">
@@ -262,6 +274,24 @@ hostname         - Display computer name`
             Remote Shell
           </CardTitle>
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-slate-700 bg-slate-800 text-white hover:bg-slate-700"
+              onClick={toggleMaximize}
+              title={isMaximized ? "Restore" : "Expand"}
+            >
+              {isMaximized ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className={`border-slate-700 text-white hover:bg-slate-700 ${isFullScreen ? 'bg-blue-600 border-blue-600' : 'bg-slate-800'}`}
+              onClick={toggleFullScreen}
+              title={isFullScreen ? "Exit Full Screen" : "Full Screen"}
+            >
+              <Expand className="h-4 w-4" />
+            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -307,7 +337,7 @@ hostname         - Display computer name`
           <TabsContent value={shellType} className="space-y-4">
             <div
               ref={terminalRef}
-              className="font-mono text-sm bg-slate-950 border border-slate-800 rounded-lg p-4 h-96 overflow-y-auto"
+              className={`font-mono text-sm bg-slate-950 border border-slate-800 rounded-lg p-4 overflow-y-auto ${isFullScreen ? 'h-[calc(100vh-220px)]' : isMaximized ? 'h-[calc(100vh-280px)]' : 'h-96'}`}
             >
               {history.length === 0 ? (
                 <div className="text-slate-500">
@@ -344,27 +374,53 @@ hostname         - Display computer name`
               )}
             </div>
 
-            <div className="flex items-center gap-2">
-              <div className="flex-1 flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-lg p-3">
-                <span className="font-mono text-sm text-green-400 font-semibold">
-                  {shellType === "powershell" ? "PS" : "C:\\Users\\Admin"}&gt;
-                </span>
-                <Input
-                  value={command}
-                  onChange={(e) => setCommand(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                  placeholder="Enter command..."
-                  disabled={isExecuting}
-                  className="border-0 bg-transparent text-blue-400 font-mono text-sm focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-slate-600"
-                />
+            <div className="space-y-3">
+              {/* Quick Commands */}
+              <div className="flex flex-wrap gap-2">
+                <span className="text-xs text-slate-500 mr-2 self-center">Quick:</span>
+                {(shellType === "powershell" 
+                  ? ["dir", "Get-Service", "Get-Process", "systeminfo", "ipconfig", "hostname"]
+                  : ["dir", "tasklist", "systeminfo", "ipconfig", "hostname", "whoami"]
+                ).map((cmd) => (
+                  <Button
+                    key={cmd}
+                    variant="outline"
+                    size="sm"
+                    className="h-7 px-2 text-xs border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white"
+                    onClick={() => {
+                      setCommand(cmd)
+                    }}
+                  >
+                    {cmd}
+                  </Button>
+                ))}
               </div>
-              <Button
-                onClick={executeCommand}
-                disabled={!command.trim() || isExecuting}
-                className="bg-blue-600 hover:bg-blue-700"
-              >
-                {isExecuting ? "Executing..." : "Execute"}
-              </Button>
+
+              {/* Command Input */}
+              <div className="flex items-center gap-2">
+                <div className="flex-1 flex items-center gap-2 bg-slate-950 border border-slate-700 rounded-lg p-3 focus-within:border-blue-500 transition-colors">
+                  <span className="font-mono text-sm text-green-400 font-semibold whitespace-nowrap">
+                    {shellType === "powershell" ? "PS" : "C:\\Users\\Admin"}&gt;
+                  </span>
+                  <Input
+                    value={command}
+                    onChange={(e) => setCommand(e.target.value)}
+                    onKeyPress={handleKeyPress}
+                    placeholder="Type your command here and press Enter..."
+                    disabled={isExecuting}
+                    className="border-0 bg-transparent text-blue-400 font-mono text-sm focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-slate-600"
+                  />
+                </div>
+                <Button
+                  onClick={executeCommand}
+                  disabled={!command.trim() || isExecuting}
+                  className="bg-blue-600 hover:bg-blue-700 h-12 px-6"
+                  size="lg"
+                >
+                  <Send className="mr-2 h-4 w-4" />
+                  {isExecuting ? "Running..." : "Execute"}
+                </Button>
+              </div>
             </div>
 
             <div className="text-xs text-slate-500 space-y-1">

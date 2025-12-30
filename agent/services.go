@@ -18,7 +18,7 @@ type ServiceInfo struct {
 }
 
 type ServiceOperation struct {
-	Action      string `json:"action"` // list, start, stop, enable, disable
+	Action      string `json:"action"` // list, start, stop, pause, resume, restart, enable, disable
 	ServiceName string `json:"service_name,omitempty"`
 }
 
@@ -167,6 +167,40 @@ func RestartService(serviceName string) error {
 	return StartService(serviceName)
 }
 
+func PauseService(serviceName string) error {
+	m, err := mgr.Connect()
+	if err != nil {
+		return err
+	}
+	defer m.Disconnect()
+
+	s, err := m.OpenService(serviceName)
+	if err != nil {
+		return err
+	}
+	defer s.Close()
+
+	_, err = s.Control(svc.Pause)
+	return err
+}
+
+func ResumeService(serviceName string) error {
+	m, err := mgr.Connect()
+	if err != nil {
+		return err
+	}
+	defer m.Disconnect()
+
+	s, err := m.OpenService(serviceName)
+	if err != nil {
+		return err
+	}
+	defer s.Close()
+
+	_, err = s.Control(svc.Continue)
+	return err
+}
+
 func EnableService(serviceName string) error {
 	m, err := mgr.Connect()
 	if err != nil {
@@ -240,6 +274,20 @@ func HandleServiceOperation(op ServiceOperation) ServiceResponse {
 			return ServiceResponse{Success: false, Message: err.Error()}
 		}
 		return ServiceResponse{Success: true, Message: fmt.Sprintf("Service %s restarted successfully", op.ServiceName)}
+
+	case "pause":
+		err := PauseService(op.ServiceName)
+		if err != nil {
+			return ServiceResponse{Success: false, Message: err.Error()}
+		}
+		return ServiceResponse{Success: true, Message: fmt.Sprintf("Service %s paused successfully", op.ServiceName)}
+
+	case "resume":
+		err := ResumeService(op.ServiceName)
+		if err != nil {
+			return ServiceResponse{Success: false, Message: err.Error()}
+		}
+		return ServiceResponse{Success: true, Message: fmt.Sprintf("Service %s resumed successfully", op.ServiceName)}
 
 	case "enable":
 		err := EnableService(op.ServiceName)

@@ -14,7 +14,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Settings, Play, Square, RefreshCw, Search, CheckCircle, XCircle, MoreVertical } from "lucide-react"
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu"
+import { Settings, Play, Square, Pause, PlayCircle, RefreshCw, Search, CheckCircle, XCircle, MoreVertical, RotateCcw } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { API_ENDPOINTS } from "@/lib/api-config"
@@ -131,7 +138,7 @@ export function ServicesManager({ deviceId, userId }: ServicesManagerProps) {
     }))
   }
 
-  const handleServiceAction = (serviceName: string, action: "start" | "stop" | "restart" | "enable" | "disable") => {
+  const handleServiceAction = (serviceName: string, action: "start" | "stop" | "pause" | "resume" | "restart" | "enable" | "disable") => {
     if (!ws || ws.readyState !== WebSocket.OPEN) return
 
     ws.send(JSON.stringify({
@@ -221,114 +228,198 @@ export function ServicesManager({ deviceId, userId }: ServicesManagerProps) {
                 <TableHead className="text-slate-400">Service Name</TableHead>
                 <TableHead className="text-slate-400">Display Name</TableHead>
                 <TableHead className="text-slate-400">Status</TableHead>
-                <TableHead className="text-slate-400">Startup Type</TableHead>
                 <TableHead className="text-slate-400 text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center text-slate-400 py-8">
+                  <TableCell colSpan={4} className="text-center text-slate-400 py-8">
                     Loading services...
                   </TableCell>
                 </TableRow>
               ) : filteredServices.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center text-slate-400 py-8">
+                  <TableCell colSpan={4} className="text-center text-slate-400 py-8">
                     No services found
                   </TableCell>
                 </TableRow>
               ) : (
                 filteredServices.map((service, index) => (
-                  <TableRow key={index} className="border-slate-800 hover:bg-slate-800/50">
-                    <TableCell className="font-medium text-white font-mono text-sm">
-                      {service.name}
-                    </TableCell>
-                    <TableCell className="text-slate-300">{service.display_name}</TableCell>
-                    <TableCell>
-                      <Badge
-                        variant="outline"
-                        className={cn(
-                          service.status === "Running"
-                            ? "border-green-500/30 bg-green-500/10 text-green-400"
-                            : "border-red-500/30 bg-red-500/10 text-red-400",
-                        )}
+                  <ContextMenu key={index}>
+                    <ContextMenuTrigger asChild>
+                      <TableRow className="border-slate-800 hover:bg-slate-800/50 cursor-context-menu">
+                        <TableCell className="font-medium text-white font-mono text-sm">
+                          {service.name}
+                        </TableCell>
+                        <TableCell className="text-slate-300">{service.display_name}</TableCell>
+                        <TableCell>
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              service.status === "Running"
+                                ? "border-green-500/30 bg-green-500/10 text-green-400"
+                                : service.status === "Paused"
+                                ? "border-yellow-500/30 bg-yellow-500/10 text-yellow-400"
+                                : "border-red-500/30 bg-red-500/10 text-red-400",
+                            )}
+                          >
+                            {service.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-slate-400 hover:text-white hover:bg-slate-800"
+                                disabled={isLoading}
+                              >
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="bg-slate-900 border-slate-800">
+                              <DropdownMenuItem
+                                onClick={() => handleServiceAction(service.name, "start")}
+                                disabled={service.status === "Running" || service.status === "Paused" || isLoading}
+                                className="text-green-400 hover:text-green-300 hover:bg-green-950/20 cursor-pointer"
+                              >
+                                <Play className="mr-2 h-4 w-4" />
+                                Start
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => handleServiceAction(service.name, "stop")}
+                                disabled={service.status === "Stopped" || isLoading}
+                                className="text-red-400 hover:text-red-300 hover:bg-red-950/20 cursor-pointer"
+                              >
+                                <Square className="mr-2 h-4 w-4" />
+                                Stop
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => handleServiceAction(service.name, "pause")}
+                                disabled={service.status !== "Running" || isLoading}
+                                className="text-yellow-400 hover:text-yellow-300 hover:bg-yellow-950/20 cursor-pointer"
+                              >
+                                <Pause className="mr-2 h-4 w-4" />
+                                Pause
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => handleServiceAction(service.name, "resume")}
+                                disabled={service.status !== "Paused" || isLoading}
+                                className="text-emerald-400 hover:text-emerald-300 hover:bg-emerald-950/20 cursor-pointer"
+                              >
+                                <PlayCircle className="mr-2 h-4 w-4" />
+                                Resume
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => handleServiceAction(service.name, "restart")}
+                                disabled={service.status === "Stopped" || isLoading}
+                                className="text-blue-400 hover:text-blue-300 hover:bg-blue-950/20 cursor-pointer"
+                              >
+                                <RefreshCw className="mr-2 h-4 w-4" />
+                                Restart
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator className="bg-slate-800" />
+                              <DropdownMenuItem
+                                onClick={() => loadServices()}
+                                disabled={isLoading}
+                                className="text-slate-400 hover:text-slate-300 hover:bg-slate-800 cursor-pointer"
+                              >
+                                <RotateCcw className="mr-2 h-4 w-4" />
+                                Refresh
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator className="bg-slate-800" />
+                              <DropdownMenuItem
+                                onClick={() => handleServiceAction(service.name, "enable")}
+                                disabled={service.startup_type === "Automatic" || isLoading}
+                                className="text-cyan-400 hover:text-cyan-300 hover:bg-cyan-950/20 cursor-pointer"
+                              >
+                                <CheckCircle className="mr-2 h-4 w-4" />
+                                Enable (Auto)
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => handleServiceAction(service.name, "disable")}
+                                disabled={service.startup_type === "Disabled" || isLoading}
+                                className="text-orange-400 hover:text-orange-300 hover:bg-orange-950/20 cursor-pointer"
+                              >
+                                <XCircle className="mr-2 h-4 w-4" />
+                                Disable
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    </ContextMenuTrigger>
+                    <ContextMenuContent className="bg-slate-900 border-slate-800">
+                      <ContextMenuItem
+                        onClick={() => handleServiceAction(service.name, "start")}
+                        disabled={service.status === "Running" || service.status === "Paused" || isLoading}
+                        className="text-green-400 hover:text-green-300 hover:bg-green-950/20 cursor-pointer"
                       >
-                        {service.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant="outline"
-                        className={cn(
-                          service.startup_type === "Automatic"
-                            ? "border-blue-500/30 bg-blue-500/10 text-blue-400"
-                            : service.startup_type === "Disabled"
-                            ? "border-gray-500/30 bg-gray-500/10 text-gray-400"
-                            : "border-yellow-500/30 bg-yellow-500/10 text-yellow-400",
-                        )}
+                        <Play className="mr-2 h-4 w-4" />
+                        Start Service
+                      </ContextMenuItem>
+                      <ContextMenuItem
+                        onClick={() => handleServiceAction(service.name, "stop")}
+                        disabled={service.status === "Stopped" || isLoading}
+                        className="text-red-400 hover:text-red-300 hover:bg-red-950/20 cursor-pointer"
                       >
-                        {service.startup_type}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-slate-400 hover:text-white hover:bg-slate-800"
-                            disabled={isLoading}
-                          >
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="bg-slate-900 border-slate-800">
-                          <DropdownMenuItem
-                            onClick={() => handleServiceAction(service.name, "start")}
-                            disabled={service.status === "Running" || isLoading}
-                            className="text-green-400 hover:text-green-300 hover:bg-green-950/20 cursor-pointer"
-                          >
-                            <Play className="mr-2 h-4 w-4" />
-                            Start
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => handleServiceAction(service.name, "stop")}
-                            disabled={service.status === "Stopped" || isLoading}
-                            className="text-red-400 hover:text-red-300 hover:bg-red-950/20 cursor-pointer"
-                          >
-                            <Square className="mr-2 h-4 w-4" />
-                            Stop
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => handleServiceAction(service.name, "restart")}
-                            disabled={isLoading}
-                            className="text-blue-400 hover:text-blue-300 hover:bg-blue-950/20 cursor-pointer"
-                          >
-                            <RefreshCw className="mr-2 h-4 w-4" />
-                            Restart
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator className="bg-slate-800" />
-                          <DropdownMenuItem
-                            onClick={() => handleServiceAction(service.name, "enable")}
-                            disabled={service.startup_type === "Automatic" || isLoading}
-                            className="text-cyan-400 hover:text-cyan-300 hover:bg-cyan-950/20 cursor-pointer"
-                          >
-                            <CheckCircle className="mr-2 h-4 w-4" />
-                            Enable (Auto)
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => handleServiceAction(service.name, "disable")}
-                            disabled={service.startup_type === "Disabled" || isLoading}
-                            className="text-orange-400 hover:text-orange-300 hover:bg-orange-950/20 cursor-pointer"
-                          >
-                            <XCircle className="mr-2 h-4 w-4" />
-                            Disable
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
+                        <Square className="mr-2 h-4 w-4" />
+                        Stop Service
+                      </ContextMenuItem>
+                      <ContextMenuItem
+                        onClick={() => handleServiceAction(service.name, "pause")}
+                        disabled={service.status !== "Running" || isLoading}
+                        className="text-yellow-400 hover:text-yellow-300 hover:bg-yellow-950/20 cursor-pointer"
+                      >
+                        <Pause className="mr-2 h-4 w-4" />
+                        Pause Service
+                      </ContextMenuItem>
+                      <ContextMenuItem
+                        onClick={() => handleServiceAction(service.name, "resume")}
+                        disabled={service.status !== "Paused" || isLoading}
+                        className="text-emerald-400 hover:text-emerald-300 hover:bg-emerald-950/20 cursor-pointer"
+                      >
+                        <PlayCircle className="mr-2 h-4 w-4" />
+                        Resume Service
+                      </ContextMenuItem>
+                      <ContextMenuItem
+                        onClick={() => handleServiceAction(service.name, "restart")}
+                        disabled={service.status === "Stopped" || isLoading}
+                        className="text-blue-400 hover:text-blue-300 hover:bg-blue-950/20 cursor-pointer"
+                      >
+                        <RefreshCw className="mr-2 h-4 w-4" />
+                        Restart Service
+                      </ContextMenuItem>
+                      <ContextMenuSeparator className="bg-slate-800" />
+                      <ContextMenuItem
+                        onClick={() => loadServices()}
+                        disabled={isLoading}
+                        className="text-slate-400 hover:text-slate-300 hover:bg-slate-800 cursor-pointer"
+                      >
+                        <RotateCcw className="mr-2 h-4 w-4" />
+                        Refresh List
+                      </ContextMenuItem>
+                      <ContextMenuSeparator className="bg-slate-800" />
+                      <ContextMenuItem
+                        onClick={() => handleServiceAction(service.name, "enable")}
+                        disabled={service.startup_type === "Automatic" || isLoading}
+                        className="text-cyan-400 hover:text-cyan-300 hover:bg-cyan-950/20 cursor-pointer"
+                      >
+                        <CheckCircle className="mr-2 h-4 w-4" />
+                        Enable (Auto Start)
+                      </ContextMenuItem>
+                      <ContextMenuItem
+                        onClick={() => handleServiceAction(service.name, "disable")}
+                        disabled={service.startup_type === "Disabled" || isLoading}
+                        className="text-orange-400 hover:text-orange-300 hover:bg-orange-950/20 cursor-pointer"
+                      >
+                        <XCircle className="mr-2 h-4 w-4" />
+                        Disable Service
+                      </ContextMenuItem>
+                    </ContextMenuContent>
+                  </ContextMenu>
                 ))
               )}
             </TableBody>

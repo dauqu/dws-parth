@@ -144,6 +144,28 @@ func (a *Agent) Connect() error {
 	return nil
 }
 
+// ConnectWithRetry keeps trying to connect to the server until successful
+func (a *Agent) ConnectWithRetry() {
+	retryInterval := 5 * time.Second
+	maxRetryInterval := 60 * time.Second
+
+	for {
+		err := a.Connect()
+		if err == nil {
+			return
+		}
+
+		log.Printf("🔄 Connection failed, retrying in %v...", retryInterval)
+		time.Sleep(retryInterval)
+
+		// Increase retry interval (exponential backoff) up to max
+		retryInterval = retryInterval * 2
+		if retryInterval > maxRetryInterval {
+			retryInterval = maxRetryInterval
+		}
+	}
+}
+
 func (a *Agent) RegisterDevice() error {
 	hostInfo, _ := host.Info()
 	username := os.Getenv("USERNAME")
@@ -261,8 +283,8 @@ func (a *Agent) ListenForCommands() {
 		var msg map[string]interface{}
 		err := a.conn.ReadJSON(&msg)
 		if err != nil {
-			log.Printf("❌ Connection lost: %v", err)
-			break
+			log.Printf("🔄 Connection lost, reconnecting...")
+			return // Return to trigger reconnection in Run()
 		}
 
 		// Handle commands from server
@@ -513,22 +535,32 @@ func (a *Agent) Run() {
 	systemInfoTicker := time.NewTicker(2 * time.Second)
 	defer systemInfoTicker.Stop()
 
+	// Channel to signal when ListenForCommands exits (connection lost)
+	disconnected := make(chan struct{})
+
 	// Listen for commands in a goroutine
-	go a.ListenForCommands()
+	go func() {
+		a.ListenForCommands()
+		close(disconnected)
+	}()
 
 	log.Println("🚀 Agent running...")
 
 	// Main loop
 	for {
 		select {
+		case <-disconnected:
+			// Connection lost, stop tickers and return to trigger reconnection
+			return
+
 		case <-heartbeatTicker.C:
 			if err := a.SendHeartbeat(); err != nil {
-				log.Printf("❌ Heartbeat failed: %v", err)
+				log.Printf("🔄 Heartbeat failed, connection may be lost")
 			}
 
 		case <-systemInfoTicker.C:
 			if err := a.SendSystemInfo(); err != nil {
-				log.Printf("❌ System info failed: %v", err)
+				log.Printf("🔄 System info failed, connection may be lost")
 			}
 		}
 	}
@@ -566,6 +598,9 @@ func (s *agentService) Execute(args []string, r <-chan svc.ChangeRequest, change
 	const cmdsAccepted = svc.AcceptStop | svc.AcceptShutdown
 	changes <- svc.Status{State: svc.StartPending}
 
+	// Channel to signal shutdown
+	stopChan := make(chan struct{})
+
 	// Start agent in a goroutine
 	go func() {
 		log.Println("🖥️  Remote Admin Agent Starting...")
@@ -573,15 +608,28 @@ func (s *agentService) Execute(args []string, r <-chan svc.ChangeRequest, change
 
 		s.agent = NewAgent()
 
-		// Connect to central server
-		if err := s.agent.Connect(); err != nil {
-			log.Printf("❌ Failed to connect: %v", err)
-			return
-		}
-		defer s.agent.conn.Close()
+		// Main connection loop - keeps reconnecting forever
+		for {
+			select {
+			case <-stopChan:
+				return
+			default:
+			}
 
-		// Run agent
-		s.agent.Run()
+			// Connect to central server with retry
+			s.agent.ConnectWithRetry()
+
+			// Run agent (will return if connection is lost)
+			s.agent.Run()
+
+			// Close old connection before reconnecting
+			if s.agent.conn != nil {
+				s.agent.conn.Close()
+			}
+
+			log.Println("🔄 Reconnecting to server...")
+			time.Sleep(2 * time.Second)
+		}
 	}()
 
 	changes <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
@@ -595,6 +643,7 @@ func (s *agentService) Execute(args []string, r <-chan svc.ChangeRequest, change
 				changes <- c.CurrentStatus
 			case svc.Stop, svc.Shutdown:
 				changes <- svc.Status{State: svc.StopPending}
+				close(stopChan)
 				if s.agent != nil && s.agent.conn != nil {
 					s.agent.conn.Close()
 				}
@@ -637,13 +686,21 @@ func main() {
 
 		agent := NewAgent()
 
-		// Connect to central server
-		if err := agent.Connect(); err != nil {
-			log.Fatalf("❌ Failed to connect: %v", err)
-		}
-		defer agent.conn.Close()
+		// Main connection loop - keeps reconnecting forever
+		for {
+			// Connect to central server with retry
+			agent.ConnectWithRetry()
 
-		// Run agent
-		agent.Run()
+			// Run agent (will return if connection is lost)
+			agent.Run()
+
+			// Close old connection before reconnecting
+			if agent.conn != nil {
+				agent.conn.Close()
+			}
+
+			log.Println("🔄 Reconnecting to server...")
+			time.Sleep(2 * time.Second)
+		}
 	}
 }

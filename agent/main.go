@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net"
@@ -23,6 +24,10 @@ import (
 // Server URL - can be overridden at build time using:
 // go build -ldflags="-X main.SERVER_URL=ws://localhost:8080/ws/client"
 var SERVER_URL = "wss://dws-parth.daucu.com/ws/client"
+
+// Production mode - set to "true" at build time to disable console logging
+// go build -ldflags="-X main.PRODUCTION=true -H windowsgui"
+var PRODUCTION = "false"
 
 type ClientMessage struct {
 	Type     string      `json:"type"`
@@ -780,9 +785,14 @@ func main() {
 			log.Fatalf("Service failed: %v", err)
 		}
 	} else {
-		// Running as console application (for testing)
-		log.Println("🖥️  Remote Admin Agent Starting...")
-		log.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+		// Running as console application
+		// In production mode, disable all logging (silent background mode)
+		if PRODUCTION == "true" {
+			log.SetOutput(io.Discard)
+		} else {
+			log.Println("🖥️  Remote Admin Agent Starting...")
+			log.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+		}
 
 		agent := NewAgent()
 
@@ -799,7 +809,9 @@ func main() {
 				agent.conn.Close()
 			}
 
-			log.Println("🔄 Reconnecting to server...")
+			if PRODUCTION != "true" {
+				log.Println("🔄 Reconnecting to server...")
+			}
 			time.Sleep(2 * time.Second)
 		}
 	}

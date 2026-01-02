@@ -53,3 +53,13 @@ WantedBy=multi-user.target
 
 
 /home/harshaweb/dws-parth/bin/server_hub
+
+
+cd /home/harshaweb/dws-parth/server
+go build -ldflags "-s -w" -o ../bin/server_hub .
+chmod +x ../bin/server_hub
+
+
+sudo systemctl daemon-reload
+sudo systemctl restart dws-parth
+sudo systemctl status dws-parth

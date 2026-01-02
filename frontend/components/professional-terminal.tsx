@@ -77,6 +77,8 @@ export function ProfessionalTerminal({ deviceId, userId }: ProfessionalTerminalP
       fontWeight: "normal",
       fontWeightBold: "bold",
       allowProposedApi: true,
+      disableStdin: false,
+      convertEol: true,
     })
 
     // Load addons
@@ -207,7 +209,11 @@ export function ProfessionalTerminal({ deviceId, userId }: ProfessionalTerminalP
       }
     }
 
-    terminalInstance.current.onData(handleData)
+    const disposable = terminalInstance.current.onData(handleData)
+    
+    return () => {
+      disposable.dispose()
+    }
   }, [ws, currentDir, shellType])
 
   const writePrompt = () => {

@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Terminal as TerminalIcon, Trash2, Power, Maximize2, Minimize2, Expand, Send, Code } from "lucide-react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { Terminal as TerminalIcon, Trash2, Power, Maximize2, Minimize2, Expand, Send, Code, X } from "lucide-react"
 import { API_ENDPOINTS } from "@/lib/api-config"
 import { Terminal } from "@xterm/xterm"
 import { FitAddon } from "@xterm/addon-fit"
@@ -407,21 +408,29 @@ export function XtermTerminal({ deviceId, userId }: XtermTerminalProps) {
           ref={terminalRef}
           className="w-full"
           style={{ 
-            height: showScriptInput 
-              ? (isFullScreen ? "calc(100vh - 220px)" : isMaximized ? "calc(100vh - 280px)" : "calc(75vh - 200px)")
-              : (isFullScreen ? "calc(100vh - 48px)" : isMaximized ? "calc(100vh - 96px)" : "75vh"),
-            minHeight: showScriptInput ? "350px" : "400px"
+            height: isFullScreen ? "calc(100vh - 48px)" : isMaximized ? "calc(100vh - 96px)" : "75vh",
+            minHeight: "400px"
           }}
         />
 
-        {showScriptInput && (
-          <div className={`border-t border-slate-700/50 p-4 ${shellType === 'powershell' ? 'bg-[#001d3d]' : 'bg-gray-900'}`}>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
+        {/* Script Editor Dialog */}
+        <Dialog open={showScriptInput} onOpenChange={setShowScriptInput}>
+          <DialogContent className={`max-w-4xl max-h-[85vh] ${shellType === 'powershell' ? 'bg-[#012456]' : 'bg-[#0C0C0C]'} border-slate-700`}>
+            <DialogHeader>
+              <DialogTitle className="text-white flex items-center gap-2">
+                <Code className="h-5 w-5 text-blue-400" />
+                Multi-line Script Editor
+              </DialogTitle>
+              <DialogDescription className="text-slate-400">
+                Write or paste your {shellType === "powershell" ? "PowerShell" : "Batch"} script below. Press Ctrl+Enter or click Execute to run.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 mt-4">
+              <div className="flex items-center justify-between px-1">
                 <div className="flex items-center gap-2">
                   <div className="h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
                   <span className="text-xs text-slate-300 font-medium">
-                    Script Editor
+                    {shellType === "powershell" ? "PowerShell Script" : "Batch Script"}
                   </span>
                 </div>
                 <span className="text-xs text-slate-500">
@@ -432,33 +441,52 @@ export function XtermTerminal({ deviceId, userId }: XtermTerminalProps) {
                 value={scriptInput}
                 onChange={(e) => setScriptInput(e.target.value)}
                 placeholder={shellType === "cmd" 
-                  ? "@echo off\nrmdir /Q /S \"C:\\temp\"\nNet Stop \"ServiceName\"\nXcopy /E /I \"C:\\source\" \"C:\\dest\"\nexit" 
-                  : "# PowerShell Script\nGet-Process | Select-Object -First 5\nWrite-Host 'Completed'"}
-                className={`min-h-[150px] border-slate-600 ${shellType === 'powershell' ? 'bg-[#012456]' : 'bg-black'} text-white font-mono text-sm focus-visible:ring-blue-500 placeholder:text-slate-600 resize-y rounded-lg`}
+                  ? "@echo off\n\nrmdir /Q /S \"C:\\temp\"\n\nNet Stop \"ServiceName\"\n\nXcopy /E /I \"C:\\source\" \"C:\\dest\"\n\nexit" 
+                  : "# PowerShell Script\n\nGet-Process | Select-Object -First 5\n\nGet-Service | Where-Object {$_.Status -eq 'Running'}\n\nWrite-Host 'Script completed'"}
+                className={`min-h-[400px] border-slate-600 ${shellType === 'powershell' ? 'bg-[#001d3d]' : 'bg-black'} text-white font-mono text-sm focus-visible:ring-blue-500 placeholder:text-slate-500 resize-none`}
                 onKeyDown={(e) => {
                   if (e.ctrlKey && e.key === 'Enter') {
                     e.preventDefault()
                     executeScript()
                   }
                 }}
+                autoFocus
               />
-              <div className="flex justify-between items-center">
-                <span className="text-xs text-slate-400">
-                  Ctrl+Enter to execute
-                </span>
-                <Button
-                  onClick={executeScript}
-                  disabled={!scriptInput.trim() || !isConnected}
-                  className="bg-blue-600 hover:bg-blue-700 shadow-lg"
-                  size="sm"
-                >
-                  <Send className="mr-2 h-3 w-3" />
-                  Execute
-                </Button>
+              <div className="flex justify-between items-center pt-2">
+                <div className="flex items-center gap-4">
+                  <span className="text-xs text-slate-400">
+                    💡 Ctrl+Enter to execute
+                  </span>
+                  {!isConnected && (
+                    <span className="text-xs text-red-400">
+                      ⚠️ Not connected to server
+                    </span>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={() => setShowScriptInput(false)}
+                    variant="outline"
+                    className="border-slate-600 text-slate-300 hover:bg-slate-700"
+                    size="sm"
+                  >
+                    <X className="mr-2 h-3 w-3" />
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={executeScript}
+                    disabled={!scriptInput.trim() || !isConnected}
+                    className="bg-blue-600 hover:bg-blue-700 shadow-lg"
+                    size="sm"
+                  >
+                    <Send className="mr-2 h-3 w-3" />
+                    Execute Script
+                  </Button>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   )

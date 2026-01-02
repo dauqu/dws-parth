@@ -193,7 +193,7 @@ func installService(exePath string) error {
 func configureService() {
 	// Set description
 	runCommand("sc", "description", SERVICE_NAME, "Remote administration agent for system management")
-	
+
 	// Set recovery options - restart on failure
 	runCommand("sc", "failure", SERVICE_NAME,
 		"reset=", "86400",

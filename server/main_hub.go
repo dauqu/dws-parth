@@ -211,8 +211,47 @@ func (h *Hub) registerClient(deviceID string, conn *websocket.Conn, deviceInfo j
 	h.clients[deviceID] = client
 	h.mutex.Unlock()
 
-	// Save to database (optional - database.go functions will be used if available)
-	// Database saving can be added here if needed
+	// Save device to database if connected
+	if IsDatabaseConnected() {
+		// Extract device info
+		hostname := deviceID
+		ipAddress := ""
+		osVersion := ""
+		windowsUsername := ""
+		wallpaperURL := "/windows-11-gradient-purple.jpg"
+		label := ""
+		groupName := ""
+
+		if h, ok := info["hostname"].(string); ok {
+			hostname = h
+		}
+		if ip, ok := info["ip_address"].(string); ok {
+			ipAddress = ip
+		}
+		if platform, ok := info["platform"].(string); ok {
+			osVersion = platform
+		}
+		if username, ok := info["username"].(string); ok {
+			windowsUsername = username
+		}
+		if wallpaper, ok := info["wallpaper_url"].(string); ok && wallpaper != "" {
+			wallpaperURL = wallpaper
+		}
+		if lbl, ok := info["label"].(string); ok {
+			label = lbl
+		}
+		if grp, ok := info["group_name"].(string); ok {
+			groupName = grp
+		}
+
+		// Register or update device in database
+		_, err := RegisterDeviceByHostname(hostname, deviceID, ipAddress, osVersion, windowsUsername, wallpaperURL, label, groupName)
+		if err != nil {
+			log.Printf("⚠️  Failed to save device to database: %v", err)
+		} else {
+			log.Printf("✅ Device saved to database: %s", deviceID)
+		}
+	}
 
 	// Notify frontends (outside lock to avoid deadlock)
 	h.broadcastToFrontends(map[string]interface{}{
@@ -229,6 +268,14 @@ func (h *Hub) unregisterClient(deviceID string) {
 		delete(h.clients, deviceID)
 	}
 	h.mutex.Unlock()
+
+	// Update device status to offline in database
+	if exists && IsDatabaseConnected() {
+		err := UpdateDeviceStatusByHostname(deviceID, "offline", "disconnected")
+		if err != nil {
+			log.Printf("⚠️  Failed to update device status: %v", err)
+		}
+	}
 
 	// Notify frontends (outside lock to avoid deadlock)
 	if exists {
@@ -303,6 +350,62 @@ func (h *Hub) getDeviceList() []map[string]interface{} {
 	h.mutex.RLock()
 	defer h.mutex.RUnlock()
 
+	// If database is connected, get all devices from DB and merge with live connections
+	if IsDatabaseConnected() {
+		dbDevices, err := GetAllDevices()
+		if err != nil {
+			log.Printf("⚠️  Failed to fetch devices from database: %v", err)
+		} else {
+			// Create map for quick device lookup
+			devices := make([]map[string]interface{}, 0, len(dbDevices))
+			for _, dbDevice := range dbDevices {
+				// Check if device is currently connected
+				client, isConnected := h.clients[dbDevice.Hostname]
+
+				status := "offline"
+				connectionStatus := "disconnected"
+				lastSeen := dbDevice.LastSeen
+
+				if isConnected {
+					status = "online"
+					connectionStatus = "connected"
+					lastSeen = client.LastSeen
+
+					// Update live data from connected client if available
+					if client.DeviceInfo != nil {
+						if ip, ok := client.DeviceInfo["ip_address"].(string); ok {
+							dbDevice.IPAddress = ip
+						}
+						if lbl, ok := client.DeviceInfo["label"].(string); ok {
+							dbDevice.Label = lbl
+						}
+					}
+				}
+
+				device := map[string]interface{}{
+					"id":                dbDevice.Hostname, // Use hostname as ID for consistency
+					"user_id":           dbDevice.UserID,
+					"name":              dbDevice.Name,
+					"hostname":          dbDevice.Hostname,
+					"ip_address":        dbDevice.IPAddress,
+					"os_version":        dbDevice.OSVersion,
+					"status":            status,
+					"connection_status": connectionStatus,
+					"last_seen":         lastSeen.Format("2006-01-02T15:04:05Z"),
+					"windows_username":  dbDevice.WindowsUsername,
+					"wallpaper_url":     dbDevice.WallpaperURL,
+					"label":             dbDevice.Label,
+					"group_name":        dbDevice.GroupName,
+					"created_at":        dbDevice.CreatedAt.Format("2006-01-02T15:04:05Z"),
+					"updated_at":        dbDevice.UpdatedAt.Format("2006-01-02T15:04:05Z"),
+				}
+				devices = append(devices, device)
+			}
+			return devices
+		}
+	}
+
+	// Fallback: If no database, return only connected devices
 	devices := make([]map[string]interface{}, 0, len(h.clients))
 	for deviceID, client := range h.clients {
 		// Extract data from device_info
@@ -310,7 +413,7 @@ func (h *Hub) getDeviceList() []map[string]interface{} {
 		ipAddress := ""
 		osVersion := ""
 		windowsUsername := ""
-		wallpaperURL := "https://images.unsplash.com/photo-1614624532983-4ce03382d63d?w=800&q=80"
+		wallpaperURL := "/windows-11-gradient-purple.jpg"
 		label := ""
 		groupName := ""
 

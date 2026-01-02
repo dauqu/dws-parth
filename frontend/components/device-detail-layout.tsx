@@ -67,7 +67,7 @@ export function DeviceDetailLayout({ device, userId }: DeviceDetailLayoutProps) 
           {/* Sidebar with tabs */}
           <div
             className={cn(
-              "flex flex-col gap-2 rounded-xl border border-slate-800 bg-slate-900/50 p-4 backdrop-blur transition-all duration-300",
+              "flex flex-col gap-2 rounded-xl border border-slate-800 bg-slate-900/50 p-4 backdrop-blur transition-all duration-300 shrink-0",
               isSidebarCollapsed ? "w-20" : "w-64",
             )}
           >
@@ -184,7 +184,8 @@ export function DeviceDetailLayout({ device, userId }: DeviceDetailLayoutProps) 
             </div>
           </div>
 
-          <div className="w-[80%] h-[85vh] overflow-y-auto scrollbar-hide">
+          {/* Main Content Area - Flexible width */}
+          <div className="flex-1 h-[85vh] overflow-y-auto scrollbar-hide">
             {activeTab === "overview" && (
               <div className="space-y-6">
                 {!isConnected && (

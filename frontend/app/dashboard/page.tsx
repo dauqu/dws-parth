@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { DeviceGrid } from "@/components/device-grid"
+import { DeviceList } from "@/components/device-list"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -49,7 +50,7 @@ export default function DashboardPage() {
   const [newGroupDescription, setNewGroupDescription] = useState("")
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
+  const [viewMode, setViewMode] = useState<"grid" | "list">("list")
   const { toast } = useToast()
   const router = useRouter()
 
@@ -379,51 +380,6 @@ export default function DashboardPage() {
 
           {/* Main Content */}
           <div className="flex-1">
-            {/* Stats Cards */}
-            <div className="grid gap-4 md:grid-cols-3 mb-6">
-              <Card className="border-slate-800 bg-slate-900/50 backdrop-blur">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-4">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-600/20 ring-1 ring-blue-500/30">
-                      <Monitor className="h-6 w-6 text-blue-400" />
-                    </div>
-                    <div>
-                      <p className="text-2xl font-bold text-white">{devices.length}</p>
-                      <p className="text-sm text-slate-400">Total Devices</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="border-slate-800 bg-slate-900/50 backdrop-blur">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-4">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-green-600/20 ring-1 ring-green-500/30">
-                      <Wifi className="h-6 w-6 text-green-400" />
-                    </div>
-                    <div>
-                      <p className="text-2xl font-bold text-white">{onlineCount}</p>
-                      <p className="text-sm text-slate-400">Online</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="border-slate-800 bg-slate-900/50 backdrop-blur">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-4">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-600/20 ring-1 ring-slate-500/30">
-                      <WifiOff className="h-6 w-6 text-slate-400" />
-                    </div>
-                    <div>
-                      <p className="text-2xl font-bold text-white">{offlineCount}</p>
-                      <p className="text-sm text-slate-400">Offline</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
             {/* Header with Search and Actions */}
             <div className="flex items-center justify-between mb-6">
               <div>
@@ -490,7 +446,7 @@ export default function DashboardPage() {
             </div>
 
             {/* Content Area */}
-            <div className="h-[calc(100vh-340px)] overflow-y-auto scrollbar-hide">
+            <div className="h-[calc(100vh-240px)] overflow-y-auto scrollbar-hide">
               {loading && (
                 <div className="flex items-center justify-center py-20">
                   <div className="text-center">
@@ -538,12 +494,21 @@ export default function DashboardPage() {
               )}
 
               {!loading && !error && filteredDevices.length > 0 && (
-                <DeviceGrid 
-                  devices={filteredDevices} 
-                  groups={groups}
-                  onLabelUpdate={handleLabelUpdate}
-                  onMoveToGroup={handleMoveToGroup}
-                />
+                viewMode === "list" ? (
+                  <DeviceList 
+                    devices={filteredDevices} 
+                    groups={groups}
+                    onLabelUpdate={handleLabelUpdate}
+                    onMoveToGroup={handleMoveToGroup}
+                  />
+                ) : (
+                  <DeviceGrid 
+                    devices={filteredDevices} 
+                    groups={groups}
+                    onLabelUpdate={handleLabelUpdate}
+                    onMoveToGroup={handleMoveToGroup}
+                  />
+                )
               )}
             </div>
           </div>

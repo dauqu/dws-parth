@@ -8,6 +8,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"sync"
@@ -23,7 +24,7 @@ import (
 
 // Server URL - can be overridden at build time using:
 // go build -ldflags="-X main.SERVER_URL=ws://localhost:8080/ws/client"
-var SERVER_URL = "wss://dws-parth.daucu.com/ws/client"
+var SERVER_URL = "ws://localhost:8080/ws/client"
 
 // Production mode - set to "true" at build time to disable console logging
 // go build -ldflags="-X main.PRODUCTION=true -H windowsgui"
@@ -586,6 +587,66 @@ func (a *Agent) HandleCommand(cmdType string, data interface{}) interface{} {
 		return map[string]interface{}{
 			"success": true,
 			"message": "Mouse control executed",
+		}
+
+	case "system_restart":
+		// Execute system restart with force flag
+		log.Println("⚠️ System restart requested")
+		var restartData map[string]interface{}
+		json.Unmarshal(dataJSON, &restartData)
+		force := false
+		if f, ok := restartData["force"].(bool); ok {
+			force = f
+		}
+
+		go func() {
+			time.Sleep(1 * time.Second) // Give time to send response
+			var cmd *exec.Cmd
+			if runtime.GOOS == "windows" {
+				if force {
+					cmd = exec.Command("shutdown", "/r", "/f", "/t", "0")
+				} else {
+					cmd = exec.Command("shutdown", "/r", "/t", "0")
+				}
+			} else {
+				cmd = exec.Command("sudo", "reboot")
+			}
+			cmd.Run()
+		}()
+
+		return map[string]interface{}{
+			"success": true,
+			"message": "System restart initiated",
+		}
+
+	case "system_shutdown":
+		// Execute system shutdown with force flag
+		log.Println("⚠️ System shutdown requested")
+		var shutdownData map[string]interface{}
+		json.Unmarshal(dataJSON, &shutdownData)
+		force := false
+		if f, ok := shutdownData["force"].(bool); ok {
+			force = f
+		}
+
+		go func() {
+			time.Sleep(1 * time.Second) // Give time to send response
+			var cmd *exec.Cmd
+			if runtime.GOOS == "windows" {
+				if force {
+					cmd = exec.Command("shutdown", "/s", "/f", "/t", "0")
+				} else {
+					cmd = exec.Command("shutdown", "/s", "/t", "0")
+				}
+			} else {
+				cmd = exec.Command("sudo", "shutdown", "-h", "now")
+			}
+			cmd.Run()
+		}()
+
+		return map[string]interface{}{
+			"success": true,
+			"message": "System shutdown initiated",
 		}
 
 	case "keyboard_control":

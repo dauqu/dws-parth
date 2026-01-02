@@ -178,6 +178,90 @@ func UpdateDeviceGroup(deviceID primitive.ObjectID, groupName string) error {
 	return err
 }
 
+// RegisterDeviceByHostname registers or updates a device using hostname as identifier
+func RegisterDeviceByHostname(hostname, deviceID, ipAddress, osVersion, windowsUsername, wallpaperURL, label, groupName string) (*Device, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Check if device already exists by hostname
+	var existingDevice Device
+	err := devicesCollection.FindOne(ctx, bson.M{"hostname": hostname}).Decode(&existingDevice)
+
+	if err == mongo.ErrNoDocuments {
+		// Create new device
+		device := Device{
+			UserID:           "default_user",
+			Name:             hostname,
+			Hostname:         hostname,
+			IPAddress:        ipAddress,
+			OSVersion:        osVersion,
+			Status:           "online",
+			ConnectionStatus: "connected",
+			LastSeen:         time.Now(),
+			WindowsUsername:  windowsUsername,
+			WallpaperURL:     wallpaperURL,
+			Label:            label,
+			GroupName:        groupName,
+			CreatedAt:        time.Now(),
+			UpdatedAt:        time.Now(),
+		}
+
+		result, err := devicesCollection.InsertOne(ctx, device)
+		if err != nil {
+			return nil, fmt.Errorf("failed to register device: %v", err)
+		}
+
+		device.ID = result.InsertedID.(primitive.ObjectID)
+		log.Printf("✅ Registered new device in DB: %s (%s)", hostname, deviceID)
+		return &device, nil
+	} else if err != nil {
+		return nil, fmt.Errorf("database error: %v", err)
+	}
+
+	// Update existing device
+	existingDevice.Status = "online"
+	existingDevice.ConnectionStatus = "connected"
+	existingDevice.LastSeen = time.Now()
+	existingDevice.IPAddress = ipAddress
+	existingDevice.Label = label
+	existingDevice.GroupName = groupName
+	existingDevice.UpdatedAt = time.Now()
+
+	_, err = devicesCollection.UpdateOne(
+		ctx,
+		bson.M{"_id": existingDevice.ID},
+		bson.M{"$set": existingDevice},
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to update device: %v", err)
+	}
+
+	log.Printf("✅ Updated existing device in DB: %s (%s)", hostname, deviceID)
+	return &existingDevice, nil
+}
+
+// UpdateDeviceStatusByHostname updates device status using hostname
+func UpdateDeviceStatusByHostname(hostname, status, connectionStatus string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	_, err := devicesCollection.UpdateOne(
+		ctx,
+		bson.M{"hostname": hostname},
+		bson.M{
+			"$set": bson.M{
+				"status":            status,
+				"connection_status": connectionStatus,
+				"last_seen":         time.Now(),
+				"updated_at":        time.Now(),
+			},
+		},
+	)
+
+	return err
+}
+
 // Helper function to get local IP
 func getLocalIP() string {
 	addrs, err := net.InterfaceAddrs()

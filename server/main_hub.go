@@ -506,6 +506,52 @@ func handleGetDevice(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
+// handleDeleteDevice deletes a device using hostname
+func handleDeleteDevice(w http.ResponseWriter, r *http.Request) {
+	// CORS headers
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+	w.Header().Set("Content-Type", "application/json")
+
+	// Handle preflight
+	if r.Method == "OPTIONS" {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	vars := mux.Vars(r)
+	deviceID := vars["id"] // This is actually the hostname
+
+	// Delete from database
+	if devicesCollection != nil {
+		if err := DeleteDeviceByHostname(deviceID); err != nil {
+			log.Printf("⚠️ Failed to delete device from database: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"success": false,
+				"error":   fmt.Sprintf("Failed to delete device: %v", err),
+			})
+			return
+		}
+		log.Printf("✅ Deleted device from database: %s", deviceID)
+	}
+
+	// Also remove from hub if connected
+	hub.mutex.Lock()
+	if client, exists := hub.clients[deviceID]; exists {
+		client.Conn.Close()
+		delete(hub.clients, deviceID)
+		log.Printf("✅ Disconnected and removed device from hub: %s", deviceID)
+	}
+	hub.mutex.Unlock()
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"message": "Device deleted successfully",
+	})
+}
+
 // handleUpdateDeviceGroup updates the group for a device
 
 func handleUpdateDeviceGroup(w http.ResponseWriter, r *http.Request) {
@@ -600,6 +646,7 @@ func main() {
 	// Device endpoints - use hub's live device list
 	router.HandleFunc("/api/devices", handleGetDevices).Methods("GET", "OPTIONS")
 	router.HandleFunc("/api/devices/{id}", handleGetDevice).Methods("GET", "OPTIONS")
+	router.HandleFunc("/api/devices/{id}", handleDeleteDevice).Methods("DELETE", "OPTIONS")
 	router.HandleFunc("/api/devices/{id}/group", handleUpdateDeviceGroup).Methods("PATCH", "OPTIONS")
 
 	// Group management endpoints (from api.go)

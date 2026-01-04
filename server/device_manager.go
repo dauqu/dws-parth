@@ -159,6 +159,23 @@ func DeleteDevice(deviceID string) error {
 	return err
 }
 
+// DeleteDeviceByHostname removes a device from database using hostname
+func DeleteDeviceByHostname(hostname string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	result, err := devicesCollection.DeleteOne(ctx, bson.M{"hostname": hostname})
+	if err != nil {
+		return err
+	}
+
+	if result.DeletedCount == 0 {
+		return fmt.Errorf("device not found: %s", hostname)
+	}
+
+	return nil
+}
+
 // UpdateDeviceGroup updates the group name of a device
 func UpdateDeviceGroup(deviceID primitive.ObjectID, groupName string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

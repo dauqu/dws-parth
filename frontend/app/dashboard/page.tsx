@@ -16,7 +16,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { fetchDevices, fetchGroups, createGroup, deleteGroup, updateDeviceGroup } from "@/lib/api-client"
+import { fetchDevices, fetchGroups, createGroup, deleteGroup, updateDeviceGroup, deleteDevice } from "@/lib/api-client"
 import type { Device, Group } from "@/lib/types"
 import { wsService } from "@/lib/websocket-service"
 import { 
@@ -212,6 +212,22 @@ export default function DashboardPage() {
       toast({
         title: "Error",
         description: "Failed to move device to group",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleDeleteDevice = async (deviceId: string) => {
+    try {
+      await deleteDevice(deviceId)
+      // Remove device from local state
+      setDevices((prevDevices) => prevDevices.filter((device) => device.id !== deviceId))
+      loadGroups() // Refresh group counts
+    } catch (error) {
+      console.error('Error deleting device:', error)
+      toast({
+        title: "Error",
+        description: "Failed to delete device",
         variant: "destructive",
       })
     }
@@ -499,6 +515,7 @@ export default function DashboardPage() {
                   <DeviceList 
                     devices={filteredDevices} 
                     groups={groups}
+                    onDelete={handleDeleteDevice}
                     onLabelUpdate={handleLabelUpdate}
                     onMoveToGroup={handleMoveToGroup}
                   />
@@ -506,6 +523,7 @@ export default function DashboardPage() {
                   <DeviceGrid 
                     devices={filteredDevices} 
                     groups={groups}
+                    onDelete={handleDeleteDevice}
                     onLabelUpdate={handleLabelUpdate}
                     onMoveToGroup={handleMoveToGroup}
                   />

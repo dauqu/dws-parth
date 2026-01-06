@@ -21,7 +21,6 @@ import {
   Server,
   ChevronLeft,
   ChevronRight,
-  Package,
   ListTodo,
 } from "lucide-react"
 import { useRouter } from "next/navigation"
@@ -31,7 +30,6 @@ import { FileManager } from "@/components/file-manager"
 import { ScreenViewer } from "@/components/screen-viewer"
 import { ProfessionalTerminal } from "@/components/professional-terminal"
 import { ServicesManager } from "@/components/services-manager"
-import { SoftwareManager } from "@/components/software-manager"
 import { TaskManager } from "@/components/task-manager"
 import { useSystemMetrics } from "@/lib/hooks/useWebSocket"
 
@@ -152,20 +150,6 @@ export function DeviceDetailLayout({ device, userId }: DeviceDetailLayoutProps) 
               >
                 <Settings className="h-4 w-4 shrink-0" />
                 {!isSidebarCollapsed && <span>Services</span>}
-              </Button>
-              <Button
-                variant="ghost"
-                className={cn(
-                  "w-full justify-start gap-3 h-11 transition-all",
-                  activeTab === "software"
-                    ? "bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-lg shadow-blue-500/20"
-                    : "text-slate-300 hover:text-white hover:bg-slate-800",
-                  isSidebarCollapsed && "justify-center px-0",
-                )}
-                onClick={() => setActiveTab("software")}
-              >
-                <Package className="h-4 w-4 shrink-0" />
-                {!isSidebarCollapsed && <span>Software</span>}
               </Button>
               <Button
                 variant="ghost"
@@ -418,7 +402,6 @@ export function DeviceDetailLayout({ device, userId }: DeviceDetailLayoutProps) 
             {activeTab === "screen" && <ScreenViewer deviceId={device.id} deviceName={device.name} />}
             {activeTab === "shell" && <ProfessionalTerminal deviceId={device.id} userId={userId} />}
             {activeTab === "services" && <ServicesManager deviceId={device.id} userId={userId} />}
-            {activeTab === "software" && <SoftwareManager deviceId={device.id} userId={userId} />}
             {activeTab === "tasks" && <TaskManager deviceId={device.id} userId={userId} />}
           </div>
         </div>

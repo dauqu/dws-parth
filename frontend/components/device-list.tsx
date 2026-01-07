@@ -202,11 +202,7 @@ export function DeviceList({
           className="group cursor-pointer border border-slate-800 bg-slate-900/50 rounded-lg p-4 transition-all hover:border-blue-500/50 hover:bg-slate-900"
           // onClick={() => router.push(`/dashboard/device/${device.id}`)}
           onClick={() =>
-            window.open(
-              `/dashboard/device/${device.id}`,
-              "_blank",
-              "noopener,noreferrer"
-            )
+            window.open(`/dashboard/device/${device.id}`, "_blank")
           }
         >
           <div className="flex items-center gap-4">

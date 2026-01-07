@@ -1,18 +1,18 @@
-"use client"
+"use client";
 
-import type React from "react"
-import { useState } from "react"
+import type React from "react";
+import { useState } from "react";
 
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+} from "@/components/ui/dropdown-menu";
 import {
   Monitor,
   User,
@@ -29,133 +29,169 @@ import {
   Check,
   X,
   FolderInput,
-} from "lucide-react"
-import { useRouter } from "next/navigation"
-import type { Device, Group } from "@/lib/types"
-import { cn } from "@/lib/utils"
-import { useToast } from "@/hooks/use-toast"
-import { wsService } from "@/lib/websocket-service"
+} from "lucide-react";
+import { useRouter } from "next/navigation";
+import type { Device, Group } from "@/lib/types";
+import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
+import { wsService } from "@/lib/websocket-service";
 
 interface DeviceListProps {
-  devices: Device[]
-  groups?: Group[]
-  onDelete?: (id: string) => void
-  onArchive?: (id: string) => void
-  onLabelUpdate?: (id: string, label: string) => void
-  onMoveToGroup?: (deviceId: string, groupName: string) => void
+  devices: Device[];
+  groups?: Group[];
+  onDelete?: (id: string) => void;
+  onArchive?: (id: string) => void;
+  onLabelUpdate?: (id: string, label: string) => void;
+  onMoveToGroup?: (deviceId: string, groupName: string) => void;
 }
 
-export function DeviceList({ devices, groups = [], onDelete, onArchive, onLabelUpdate, onMoveToGroup }: DeviceListProps) {
-  const router = useRouter()
-  const { toast } = useToast()
-  const [editingLabel, setEditingLabel] = useState<string | null>(null)
-  const [labelValue, setLabelValue] = useState("")
+export function DeviceList({
+  devices,
+  groups = [],
+  onDelete,
+  onArchive,
+  onLabelUpdate,
+  onMoveToGroup,
+}: DeviceListProps) {
+  const router = useRouter();
+  const { toast } = useToast();
+  const [editingLabel, setEditingLabel] = useState<string | null>(null);
+  const [labelValue, setLabelValue] = useState("");
 
-  const handleDelete = (e: React.MouseEvent, deviceId: string, deviceName: string) => {
-    e.stopPropagation()
+  const handleDelete = (
+    e: React.MouseEvent,
+    deviceId: string,
+    deviceName: string
+  ) => {
+    e.stopPropagation();
     if (confirm(`Are you sure you want to delete ${deviceName}?`)) {
-      onDelete?.(deviceId)
+      onDelete?.(deviceId);
       toast({
         title: "Device Deleted",
         description: `${deviceName} has been removed from your dashboard.`,
-      })
+      });
     }
-  }
+  };
 
-  const handleArchive = (e: React.MouseEvent, deviceId: string, deviceName: string) => {
-    e.stopPropagation()
-    onArchive?.(deviceId)
+  const handleArchive = (
+    e: React.MouseEvent,
+    deviceId: string,
+    deviceName: string
+  ) => {
+    e.stopPropagation();
+    onArchive?.(deviceId);
     toast({
       title: "Device Archived",
       description: `${deviceName} has been archived.`,
-    })
-  }
+    });
+  };
 
-  const handleShutdown = (e: React.MouseEvent, deviceId: string, deviceName: string) => {
-    e.stopPropagation()
+  const handleShutdown = (
+    e: React.MouseEvent,
+    deviceId: string,
+    deviceName: string
+  ) => {
+    e.stopPropagation();
     if (confirm(`Are you sure you want to shutdown ${deviceName}?`)) {
       wsService.send({
         type: "system_shutdown",
         device_id: deviceId,
         data: {
-          force: true
-        }
-      })
+          force: true,
+        },
+      });
       toast({
         title: "Shutdown Command Sent",
         description: `Force shutting down ${deviceName}...`,
-      })
+      });
     }
-  }
+  };
 
-  const handleRestart = (e: React.MouseEvent, deviceId: string, deviceName: string) => {
-    e.stopPropagation()
+  const handleRestart = (
+    e: React.MouseEvent,
+    deviceId: string,
+    deviceName: string
+  ) => {
+    e.stopPropagation();
     if (confirm(`Are you sure you want to restart ${deviceName}?`)) {
       wsService.send({
         type: "system_restart",
         device_id: deviceId,
         data: {
-          force: true
-        }
-      })
+          force: true,
+        },
+      });
       toast({
         title: "Restart Command Sent",
         description: `Force restarting ${deviceName}...`,
-      })
+      });
     }
-  }
+  };
 
-  const startEditingLabel = (e: React.MouseEvent, deviceId: string, currentLabel: string) => {
-    e.stopPropagation()
-    setEditingLabel(deviceId)
-    setLabelValue(currentLabel || "")
-  }
+  const startEditingLabel = (
+    e: React.MouseEvent,
+    deviceId: string,
+    currentLabel: string
+  ) => {
+    e.stopPropagation();
+    setEditingLabel(deviceId);
+    setLabelValue(currentLabel || "");
+  };
 
   const cancelEditingLabel = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    setEditingLabel(null)
-    setLabelValue("")
-  }
+    e.stopPropagation();
+    setEditingLabel(null);
+    setLabelValue("");
+  };
 
-  const saveLabel = async (e: React.MouseEvent, deviceId: string, deviceName: string) => {
-    e.stopPropagation()
+  const saveLabel = async (
+    e: React.MouseEvent,
+    deviceId: string,
+    deviceName: string
+  ) => {
+    e.stopPropagation();
     try {
       const sent = wsService.send({
         type: "update_label",
         device_id: deviceId,
         data: {
-          label: labelValue
-        }
-      })
-      
+          label: labelValue,
+        },
+      });
+
       if (!sent) {
-        throw new Error("WebSocket not connected")
+        throw new Error("WebSocket not connected");
       }
-      
-      onLabelUpdate?.(deviceId, labelValue)
-      
+
+      onLabelUpdate?.(deviceId, labelValue);
+
       toast({
         title: "Label Updated",
         description: `Label for ${deviceName} has been updated.`,
-      })
-      setEditingLabel(null)
+      });
+      setEditingLabel(null);
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to update label. Make sure the device is connected.",
+        description:
+          "Failed to update label. Make sure the device is connected.",
         variant: "destructive",
-      })
+      });
     }
-  }
+  };
 
   if (devices.length === 0) {
     return (
       <div className="border border-slate-800 bg-slate-900/50 rounded-lg p-12 text-center">
         <Monitor className="h-16 w-16 text-slate-600 mx-auto mb-4" />
-        <h3 className="text-xl font-semibold text-slate-300 mb-2">No Devices Found</h3>
-        <p className="text-sm text-slate-500">Add your first Windows device to get started</p>
+        <h3 className="text-xl font-semibold text-slate-300 mb-2">
+          No Devices Found
+        </h3>
+        <p className="text-sm text-slate-500">
+          Add your first Windows device to get started
+        </p>
       </div>
-    )
+    );
   }
 
   return (
@@ -164,7 +200,14 @@ export function DeviceList({ devices, groups = [], onDelete, onArchive, onLabelU
         <div
           key={device.id}
           className="group cursor-pointer border border-slate-800 bg-slate-900/50 rounded-lg p-4 transition-all hover:border-blue-500/50 hover:bg-slate-900"
-          onClick={() => router.push(`/dashboard/device/${device.id}`)}
+          // onClick={() => router.push(`/dashboard/device/${device.id}`)}
+          onClick={() =>
+            window.open(
+              `/dashboard/device/${device.id}`,
+              "_blank",
+              "noopener,noreferrer"
+            )
+          }
         >
           <div className="flex items-center gap-4">
             {/* Device Icon */}
@@ -175,7 +218,9 @@ export function DeviceList({ devices, groups = [], onDelete, onArchive, onLabelU
             {/* Device Info */}
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
-                <h3 className="text-base font-semibold text-white truncate">{device.name}</h3>
+                <h3 className="text-base font-semibold text-white truncate">
+                  {device.name}
+                </h3>
                 <Badge
                   variant="outline"
                   className={cn(
@@ -183,8 +228,8 @@ export function DeviceList({ devices, groups = [], onDelete, onArchive, onLabelU
                     device.status === "online"
                       ? "border-green-500/30 bg-green-500/20 text-green-400"
                       : device.status === "maintenance"
-                        ? "border-yellow-500/30 bg-yellow-500/20 text-yellow-400"
-                        : "border-slate-600/30 bg-slate-600/20 text-slate-400",
+                      ? "border-yellow-500/30 bg-yellow-500/20 text-yellow-400"
+                      : "border-slate-600/30 bg-slate-600/20 text-slate-400"
                   )}
                 >
                   {device.status === "online" ? (
@@ -217,7 +262,10 @@ export function DeviceList({ devices, groups = [], onDelete, onArchive, onLabelU
             {/* Label */}
             <div className="flex items-center gap-2 min-w-[200px]">
               {editingLabel === device.id ? (
-                <div className="flex items-center gap-1 flex-1" onClick={(e) => e.stopPropagation()}>
+                <div
+                  className="flex items-center gap-1 flex-1"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   <Input
                     value={labelValue}
                     onChange={(e) => setLabelValue(e.target.value)}
@@ -246,13 +294,17 @@ export function DeviceList({ devices, groups = [], onDelete, onArchive, onLabelU
                 <div className="flex items-center gap-2 flex-1">
                   <Tag className="h-3 w-3 text-slate-500" />
                   <span className="text-sm text-slate-300 truncate">
-                    {device.label || <span className="text-slate-500 italic">No label</span>}
+                    {device.label || (
+                      <span className="text-slate-500 italic">No label</span>
+                    )}
                   </span>
                   <Button
                     variant="ghost"
                     size="sm"
                     className="h-6 px-2 text-xs text-blue-400 hover:text-blue-300"
-                    onClick={(e) => startEditingLabel(e, device.id, device.label)}
+                    onClick={(e) =>
+                      startEditingLabel(e, device.id, device.label)
+                    }
                   >
                     <Edit className="h-3 w-3" />
                   </Button>
@@ -262,7 +314,10 @@ export function DeviceList({ devices, groups = [], onDelete, onArchive, onLabelU
 
             {/* Group Badge */}
             {device.group_name && (
-              <Badge variant="outline" className="border-purple-500/30 bg-purple-500/10 text-purple-400 text-xs px-2 py-0">
+              <Badge
+                variant="outline"
+                className="border-purple-500/30 bg-purple-500/10 text-purple-400 text-xs px-2 py-0"
+              >
                 {device.group_name}
               </Badge>
             )}
@@ -283,12 +338,15 @@ export function DeviceList({ devices, groups = [], onDelete, onArchive, onLabelU
                   <MoreVertical className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48 border-slate-800 bg-slate-900">
+              <DropdownMenuContent
+                align="end"
+                className="w-48 border-slate-800 bg-slate-900"
+              >
                 <DropdownMenuItem
                   className="text-slate-300 focus:bg-slate-800 focus:text-white"
                   onClick={(e) => {
-                    e.stopPropagation()
-                    router.push(`/dashboard/device/${device.id}`)
+                    e.stopPropagation();
+                    router.push(`/dashboard/device/${device.id}`);
                   }}
                 >
                   <Edit className="mr-2 h-4 w-4" />
@@ -321,14 +379,17 @@ export function DeviceList({ devices, groups = [], onDelete, onArchive, onLabelU
                         Move to Group
                       </DropdownMenuItem>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent side="right" className="border-slate-800 bg-slate-900">
+                    <DropdownMenuContent
+                      side="right"
+                      className="border-slate-800 bg-slate-900"
+                    >
                       {groups.map((group) => (
                         <DropdownMenuItem
                           key={group.id}
                           className="text-slate-300 focus:bg-slate-800 focus:text-white"
                           onClick={(e) => {
-                            e.stopPropagation()
-                            onMoveToGroup?.(device.id, group.name)
+                            e.stopPropagation();
+                            onMoveToGroup?.(device.id, group.name);
                           }}
                         >
                           {group.name}
@@ -358,5 +419,5 @@ export function DeviceList({ devices, groups = [], onDelete, onArchive, onLabelU
         </div>
       ))}
     </div>
-  )
+  );
 }

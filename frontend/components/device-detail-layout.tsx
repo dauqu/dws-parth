@@ -338,63 +338,6 @@ export function DeviceDetailLayout({ device, userId }: DeviceDetailLayoutProps) 
                     </CardContent>
                   </Card>
                 </div>
-
-                <Card className="border-slate-800 bg-slate-900/50">
-                  <CardContent className="p-6">
-                    <h3 className="mb-4 text-lg font-semibold text-white flex items-center gap-2">
-                      <HardDrive className="h-5 w-5 text-indigo-400" />
-                      Storage Volumes
-                    </h3>
-                    <div className="space-y-3">
-                      <div className="p-4 rounded-lg bg-slate-950/50 border border-slate-800">
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-3">
-                            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-600/20 ring-1 ring-blue-500/30">
-                              <span className="font-bold text-blue-400">C:</span>
-                            </div>
-                            <div>
-                              <p className="font-medium text-white">System Drive (C:)</p>
-                              <p className="text-xs text-slate-500">NTFS - Primary Partition</p>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-sm font-medium text-white">730 GB / 1 TB</p>
-                            <p className="text-xs text-slate-500">73% Used</p>
-                          </div>
-                        </div>
-                        <div className="h-2 overflow-hidden rounded-full bg-slate-800">
-                          <div
-                            className="h-full rounded-full bg-gradient-to-r from-blue-500 to-purple-500"
-                            style={{ width: "73%" }}
-                          />
-                        </div>
-                      </div>
-                      <div className="p-4 rounded-lg bg-slate-950/50 border border-slate-800">
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-3">
-                            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-600/20 ring-1 ring-green-500/30">
-                              <span className="font-bold text-green-400">D:</span>
-                            </div>
-                            <div>
-                              <p className="font-medium text-white">Data Drive (D:)</p>
-                              <p className="text-xs text-slate-500">NTFS - Secondary Storage</p>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-sm font-medium text-white">1.2 TB / 2 TB</p>
-                            <p className="text-xs text-slate-500">60% Used</p>
-                          </div>
-                        </div>
-                        <div className="h-2 overflow-hidden rounded-full bg-slate-800">
-                          <div
-                            className="h-full rounded-full bg-gradient-to-r from-green-500 to-emerald-500"
-                            style={{ width: "60%" }}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
               </div>
             )}
 

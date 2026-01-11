@@ -111,6 +111,27 @@ func handleAgentWebSocket(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 
+		case "network_status":
+			// Handle network status updates from agent
+			if deviceID != "" {
+				log.Printf("📶 Network status from device %s", deviceID)
+				hub.broadcastToFrontends(map[string]interface{}{
+					"type":      "network_status",
+					"device_id": deviceID,
+					"data":      msg.Data,
+				})
+			}
+
+		case "voice_data":
+			// Handle voice data from agent - low latency forwarding
+			if deviceID != "" {
+				hub.broadcastToFrontends(map[string]interface{}{
+					"type":      "voice_data",
+					"device_id": deviceID,
+					"data":      msg.Data,
+				})
+			}
+
 		default:
 			// Forward responses to frontend
 			if deviceID != "" {

@@ -336,6 +336,8 @@ func (a *Agent) ListenForCommands() {
 				responseType = "switch_shell_response"
 			case "screen_capture":
 				responseType = "screen_capture"
+			case "voice_capture":
+				responseType = "voice_data"
 			}
 
 			responseMsg := ClientMessage{
@@ -536,8 +538,9 @@ func (a *Agent) HandleCommand(cmdType string, data interface{}) interface{} {
 		json.Unmarshal(dataJSON, &captureData)
 
 		options := ScreenCaptureOptions{
-			Quality:    60,   // Default quality
-			ShowCursor: true, // Default to showing cursor
+			Quality:      60,   // Default quality
+			ShowCursor:   true, // Default to showing cursor
+			AdaptiveMode: true, // Enable adaptive quality by default
 		}
 
 		if q, ok := captureData["quality"].(float64); ok {
@@ -545,6 +548,9 @@ func (a *Agent) HandleCommand(cmdType string, data interface{}) interface{} {
 		}
 		if sc, ok := captureData["show_cursor"].(bool); ok {
 			options.ShowCursor = sc
+		}
+		if am, ok := captureData["adaptive_mode"].(bool); ok {
+			options.AdaptiveMode = am
 		}
 
 		capture, err := CaptureScreenWithOptions(options)
@@ -555,12 +561,13 @@ func (a *Agent) HandleCommand(cmdType string, data interface{}) interface{} {
 			}
 		}
 		return map[string]interface{}{
-			"success":  true,
-			"image":    capture.Image,
-			"width":    capture.Width,
-			"height":   capture.Height,
-			"cursor_x": capture.CursorX,
-			"cursor_y": capture.CursorY,
+			"success":        true,
+			"image":          capture.Image,
+			"width":          capture.Width,
+			"height":         capture.Height,
+			"cursor_x":       capture.CursorX,
+			"cursor_y":       capture.CursorY,
+			"network_status": capture.NetworkStatus,
 		}
 
 	case "shell_command":
@@ -699,6 +706,10 @@ func (a *Agent) HandleCommand(cmdType string, data interface{}) interface{} {
 			"message": "Window control executed",
 		}
 
+	case "voice_capture":
+		response := HandleVoiceControl(dataJSON)
+		return response
+
 	default:
 		return map[string]interface{}{
 			"success": false,
@@ -729,6 +740,9 @@ func (a *Agent) Run() {
 		a.ListenForCommands()
 		close(disconnected)
 	}()
+
+	// Start network monitoring
+	go a.monitorNetwork()
 
 	log.Println("🚀 Agent running...")
 

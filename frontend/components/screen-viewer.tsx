@@ -13,7 +13,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
-import { Monitor, Maximize2, RefreshCw, MousePointer, Minimize2, Maximize, X, Expand, Shrink, Settings, Zap } from "lucide-react"
+import { Monitor, Maximize2, RefreshCw, MousePointer, Minimize2, Maximize, X, Expand, Shrink, Settings, Zap, Wifi, WifiOff, Mic, MicOff, AlertTriangle } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { API_ENDPOINTS } from "@/lib/api-config"
 
@@ -33,6 +33,10 @@ export function ScreenViewer({ deviceId, deviceName }: ScreenViewerProps) {
   const [showCursor, setShowCursor] = useState<boolean>(true)
   const [cursorPos, setCursorPos] = useState<{ x: number; y: number } | null>(null)
   const [screenDimensions, setScreenDimensions] = useState<{ width: number; height: number } | null>(null)
+  const [networkStatus, setNetworkStatus] = useState<'good' | 'medium' | 'slow'>('good')
+  const [showSlowNetworkBanner, setShowSlowNetworkBanner] = useState(false)
+  const [voiceEnabled, setVoiceEnabled] = useState(false)
+  const [adaptiveMode, setAdaptiveMode] = useState(true)
   const canvasRef = useRef<HTMLImageElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -71,7 +75,38 @@ export function ScreenViewer({ deviceId, deviceName }: ScreenViewerProps) {
           if (message.data.cursor_x !== undefined && message.data.cursor_y !== undefined) {
             setCursorPos({ x: message.data.cursor_x, y: message.data.cursor_y })
           }
+          // Track network status from screen capture response
+          if (message.data.network_status) {
+            setNetworkStatus(message.data.network_status)
+            if (message.data.network_status === 'slow') {
+              setShowSlowNetworkBanner(true)
+            } else if (message.data.network_status === 'good') {
+              setShowSlowNetworkBanner(false)
+            }
+          }
         }
+      }
+      
+      // Handle network status updates
+      if (message.type === "network_status" && message.device_id === deviceId) {
+        const quality = message.data?.quality || 'good'
+        setNetworkStatus(quality)
+        if (quality === 'slow') {
+          setShowSlowNetworkBanner(true)
+          // Auto-reduce quality and FPS for slow networks
+          if (adaptiveMode) {
+            if (fps > 5) setFps(5)
+            if (quality > 30) setQuality(30)
+          }
+        } else if (quality === 'good') {
+          setShowSlowNetworkBanner(false)
+        }
+      }
+      
+      // Handle voice data
+      if (message.type === "voice_data" && message.device_id === deviceId) {
+        // Voice data received - could be played through Web Audio API
+        console.log("🎤 Voice data received")
       }
     }
 
@@ -118,6 +153,27 @@ export function ScreenViewer({ deviceId, deviceName }: ScreenViewerProps) {
     setScreenImage(null)
     setCursorPos(null)
     setScreenDimensions(null)
+    setNetworkStatus('good')
+    setShowSlowNetworkBanner(false)
+    setVoiceEnabled(false)
+  }
+
+  // Toggle voice capture on/off
+  const handleVoiceToggle = () => {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return
+    
+    const newVoiceState = !voiceEnabled
+    setVoiceEnabled(newVoiceState)
+    
+    ws.send(JSON.stringify({
+      type: "voice_capture",
+      device_id: deviceId,
+      data: {
+        action: newVoiceState ? "start" : "stop",
+        sample_rate: networkStatus === 'slow' ? 8000 : 16000,
+        channels: 1
+      }
+    }))
   }
 
   const qualityPresets = [
@@ -346,6 +402,30 @@ export function ScreenViewer({ deviceId, deviceName }: ScreenViewerProps) {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            {/* Network Status Indicator */}
+            <Badge 
+              variant="outline" 
+              className={`${
+                networkStatus === 'good' 
+                  ? 'border-green-500/30 bg-green-500/10 text-green-400' 
+                  : networkStatus === 'medium'
+                  ? 'border-yellow-500/30 bg-yellow-500/10 text-yellow-400'
+                  : 'border-red-500/30 bg-red-500/10 text-red-400'
+              }`}
+            >
+              {networkStatus === 'good' ? <Wifi className="mr-1 h-3 w-3" /> : <WifiOff className="mr-1 h-3 w-3" />}
+              {networkStatus === 'good' ? 'Good' : networkStatus === 'medium' ? 'Medium' : 'Slow'}
+            </Badge>
+            {/* Voice Toggle Button */}
+            <Button
+              variant="outline"
+              size="sm"
+              className={`border-slate-700 ${voiceEnabled ? 'bg-purple-600 hover:bg-purple-700' : 'bg-slate-800 hover:bg-slate-700'} text-white`}
+              onClick={handleVoiceToggle}
+            >
+              {voiceEnabled ? <Mic className="mr-2 h-4 w-4" /> : <MicOff className="mr-2 h-4 w-4" />}
+              {voiceEnabled ? "Mute" : "Voice"}
+            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -377,6 +457,23 @@ export function ScreenViewer({ deviceId, deviceName }: ScreenViewerProps) {
             </div>
           ) : (
             <div className="relative h-full w-full bg-slate-950">
+              {/* Slow Network Warning Banner */}
+              {showSlowNetworkBanner && (
+                <div className="absolute top-0 left-0 right-0 z-20 bg-amber-500/95 text-white px-4 py-2 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4" />
+                    <span className="font-medium">Slow network detected - quality reduced automatically</span>
+                  </div>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="text-white hover:bg-amber-600"
+                    onClick={() => setShowSlowNetworkBanner(false)}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
               {controlEnabled && screenImage && (
                 <div className="absolute top-4 right-4 z-10 bg-green-600/90 text-white px-3 py-2 rounded-md font-semibold flex items-center gap-2">
                   <MousePointer className="h-4 w-4 animate-pulse" />

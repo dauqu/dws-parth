@@ -3,6 +3,8 @@ package main
 import (
 	"sync"
 	"time"
+
+	"github.com/gorilla/websocket"
 )
 
 // NetworkStatus represents the current network quality
@@ -46,7 +48,7 @@ func UpdateNetworkStatus(latency int64) {
 
 // monitorNetwork continuously monitors network latency by measuring WebSocket ping time
 func (a *Agent) monitorNetwork() {
-	ticker := time.NewTicker(5 * time.Second)
+	ticker := time.NewTicker(10 * time.Second) // Check every 10 seconds instead of 5
 	defer ticker.Stop()
 
 	for range ticker.C {
@@ -56,35 +58,38 @@ func (a *Agent) monitorNetwork() {
 
 		// Measure round-trip time using ping/pong
 		start := time.Now()
-		
+
 		a.writeMux.Lock()
 		err := a.conn.WriteControl(
-			8, // PingMessage
+			websocket.PingMessage, // Correct: 9 for Ping (was incorrectly 8 which is CloseMessage!)
 			[]byte("ping"),
-			time.Now().Add(3*time.Second),
+			time.Now().Add(5*time.Second),
 		)
 		a.writeMux.Unlock()
 
 		if err != nil {
-			// Connection error, assume slow network
+			// Connection error, assume slow network but don't spam
 			UpdateNetworkStatus(999)
 			continue
 		}
 
-		// Wait a bit for the pong (handled by websocket library)
 		// Use the time since we sent ping as latency estimate
 		latency := time.Since(start).Milliseconds()
 		UpdateNetworkStatus(latency)
 
-		// Send network status to server
+		// Send network status to server (but not too frequently)
 		a.sendNetworkStatus()
 	}
 }
 
 // sendNetworkStatus sends the current network status to the server
 func (a *Agent) sendNetworkStatus() {
+	if a.conn == nil {
+		return
+	}
+
 	status := GetNetworkStatus()
-	
+
 	msg := ClientMessage{
 		Type:     "network_status",
 		DeviceID: a.deviceID,

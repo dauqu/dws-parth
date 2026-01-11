@@ -28,8 +28,8 @@ export function ScreenViewer({ deviceId, deviceName }: ScreenViewerProps) {
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [ws, setWs] = useState<WebSocket | null>(null)
   const [screenImage, setScreenImage] = useState<string | null>(null)
-  const [quality, setQuality] = useState<number>(60) // JPEG quality 1-100
-  const [fps, setFps] = useState<number>(10) // Frames per second
+  const [quality, setQuality] = useState<number>(30) // JPEG quality 1-100 (default: low for fast streaming)
+  const [fps, setFps] = useState<number>(30) // Frames per second (default: maximum smooth)
   const [showCursor, setShowCursor] = useState<boolean>(true)
   const [cursorPos, setCursorPos] = useState<{ x: number; y: number } | null>(null)
   const [screenDimensions, setScreenDimensions] = useState<{ width: number; height: number } | null>(null)

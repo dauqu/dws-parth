@@ -25,6 +25,8 @@ type ShellSession struct {
 	Type       string `json:"type"` // "powershell" or "cmd"
 	WorkingDir string `json:"working_dir"`
 	mu         sync.Mutex
+	conpty     *ConPTYSession // ConPTY session if available
+	useConPTY  bool           // Whether to use ConPTY for this session
 }
 
 var shellSessions = make(map[string]*ShellSession)
@@ -40,10 +42,15 @@ func InitShellSession(sessionID, shellType string) {
 		homeDir = "C:\\"
 	}
 
-	shellSessions[sessionID] = &ShellSession{
+	session := &ShellSession{
 		Type:       shellType,
 		WorkingDir: homeDir,
+		useConPTY:  IsConPTYAvailable(), // Check if ConPTY is available
 	}
+
+	log.Printf("Initializing shell session %s with type %s, ConPTY available: %v", sessionID, shellType, session.useConPTY)
+
+	shellSessions[sessionID] = session
 }
 
 func GetShellSession(sessionID string) *ShellSession {
@@ -146,6 +153,15 @@ func HandleShellCommand(data json.RawMessage) Response {
 	session.mu.Lock()
 	defer session.mu.Unlock()
 
+	// Use ConPTY if available for better terminal emulation
+	if session.useConPTY {
+		session.mu.Unlock() // Unlock before calling ConPTY handler which has its own locking
+		response := HandleShellCommandConPTY(session, req.Command)
+		return response
+		// Note: mutex will be unlocked by defer
+	}
+
+	// Fallback to traditional exec.Command for older Windows or when ConPTY fails
 	// Check if this is a cd command that we need to handle specially
 	cmdTrimmed := strings.TrimSpace(req.Command)
 	isChangeDir := isCdCommand(cmdTrimmed)

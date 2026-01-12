@@ -132,6 +132,17 @@ func handleAgentWebSocket(w http.ResponseWriter, r *http.Request) {
 				})
 			}
 
+		case "webrtc_offer", "webrtc_answer", "webrtc_ice":
+			// Forward WebRTC signaling from agent to frontend
+			if deviceID != "" {
+				log.Printf("📡 Forwarding WebRTC %s from device %s", msg.Type, deviceID)
+				hub.broadcastToFrontends(map[string]interface{}{
+					"type":      msg.Type,
+					"device_id": deviceID,
+					"data":      msg.Data,
+				})
+			}
+
 		default:
 			// Forward responses to frontend
 			if deviceID != "" {
@@ -185,6 +196,12 @@ func handleFrontendWebSocket(w http.ResponseWriter, r *http.Request) {
 		}
 
 		log.Printf("📨 Frontend command: type=%s, device_id=%s", msg.Type, msg.DeviceID)
+
+		// Handle WebRTC signaling
+		if msg.Type == "webrtc_signal" {
+			HandleWebRTCSignaling(conn, msg)
+			continue
+		}
 
 		// Forward command to specific device
 		if msg.DeviceID != "" {

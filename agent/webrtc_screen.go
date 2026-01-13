@@ -45,7 +45,7 @@ func InitializeWebRTCWithOffer(sessionID string, offerSDP string, onICE func(can
 		delete(webrtcSessions, sessionID)
 	}
 
-	// Configure WebRTC with multiple STUN servers for better connectivity
+	// Configure WebRTC with STUN and TURN servers for production connectivity
 	config := webrtc.Configuration{
 		ICEServers: []webrtc.ICEServer{
 			{
@@ -56,6 +56,15 @@ func InitializeWebRTCWithOffer(sessionID string, offerSDP string, onICE func(can
 					"stun:stun3.l.google.com:19302",
 					"stun:stun4.l.google.com:19302",
 				},
+			},
+			// TURN servers for NAT traversal in production
+			{
+				URLs: []string{
+					"turn:openrelay.metered.ca:80",
+					"turn:openrelay.metered.ca:443",
+				},
+				Username:   "openrelayproject",
+				Credential: "openrelayproject",
 			},
 		},
 		ICETransportPolicy: webrtc.ICETransportPolicyAll,

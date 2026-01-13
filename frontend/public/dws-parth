@@ -1,0 +1,84 @@
+
+
+server {
+    listen 80;
+    server_name dws-parth.daucu.com;
+
+    # Increase buffer sizes for WebRTC signaling
+    client_max_body_size 10M;
+    client_body_buffer_size 128k;
+
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+
+        # WebSocket support
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+
+        # Standard proxy headers
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # WebRTC specific headers
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Server $host;
+        
+        # Timeouts for WebSocket and WebRTC
+        proxy_read_timeout 86400;
+        proxy_send_timeout 86400;
+        proxy_connect_timeout 86400;
+
+        # Buffer settings for real-time streaming
+        proxy_buffering off;
+        proxy_cache off;
+        
+        # Increase buffer sizes for WebRTC data
+        proxy_buffer_size 128k;
+        proxy_buffers 4 256k;
+        proxy_busy_buffers_size 256k;
+    }
+}
+
+
+sudo nano /etc/nginx/sites-available/dws-parth.daucu.com
+sudo ln -s /etc/nginx/sites-available/dws-parth.daucu.com /etc/nginx/sites-enabled/
+
+sudo certbot --nginx -d dws-parth.daucu.com
+
+
+
+
+[Unit]
+Description=My Background Executable
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/harshaweb/dws-parth/bin/
+ExecStart=/home/harshaweb/dws-parth/bin/server_hub
+Restart=always
+RestartSec=5
+Environment=PORT=8080
+
+[Install]
+WantedBy=multi-user.target
+
+
+
+
+/home/harshaweb/dws-parth/bin/server_hub
+
+export PATH=$PATH:/usr/local/go/bin
+
+cd /home/harshaweb/dws-parth/server
+go build -ldflags "-s -w" -o ../bin/server_hub .
+chmod +x ../bin/server_hub
+
+
+sudo systemctl daemon-reload
+sudo systemctl restart dws
+sudo systemctl status dws

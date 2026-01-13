@@ -1,4 +1,4 @@
-# Remote Administration Tool
+# Remote Administration Tools
 
 A comprehensive remote administration tool built in Go for Windows systems.
 

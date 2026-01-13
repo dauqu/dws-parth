@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -31,11 +32,18 @@ var (
 func main() {
 	// Check if running as administrator
 	if !isAdmin() {
-		fmt.Println("⚠️  This installer requires Administrator privileges!")
-		fmt.Println("Please run as Administrator...")
-		fmt.Println("\nPress Enter to exit...")
-		fmt.Scanln()
-		os.Exit(1)
+		// Try to re-launch with admin privileges
+		fmt.Println("🔐 Requesting Administrator privileges...")
+		if err := runAsAdmin(); err != nil {
+			fmt.Println("⚠️  Failed to request Administrator privileges!")
+			fmt.Printf("Error: %v\n", err)
+			fmt.Println("\nPlease right-click and select 'Run as Administrator'")
+			fmt.Println("\nPress Enter to exit...")
+			fmt.Scanln()
+			os.Exit(1)
+		}
+		// If successful, the new elevated process will run and this one will exit
+		os.Exit(0)
 	}
 
 	fmt.Println("╔════════════════════════════════════════╗")
@@ -57,21 +65,39 @@ func main() {
 	}
 	fmt.Println("✅ Directory created")
 
-	// Step 2: Download agent for detected architecture
+	// Step 2: Download agent for detected architecture with retry
 	exePath := filepath.Join(INSTALL_DIR, EXE_NAME)
 	downloadURL := getDownloadURL(arch)
 	fmt.Printf("\n⬇️  Downloading %s agent...\n", arch)
-	fmt.Printf("   From: %s\n", downloadURL)
-	if err := downloadFile(exePath, downloadURL); err != nil {
-		fmt.Printf("❌ Download failed: %v\n", err)
-		fmt.Println("\n💡 Tip: Make sure the agent files are uploaded to your server:")
-		fmt.Printf("   %s/dws-agent-amd64.exe\n", DOWNLOAD_BASE_URL)
-		fmt.Printf("   %s/dws-agent-386.exe\n", DOWNLOAD_BASE_URL)
-		fmt.Printf("   %s/dws-agent-arm64.exe\n", DOWNLOAD_BASE_URL)
+
+	maxRetries := 3
+	var lastErr error
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		if attempt > 1 {
+			fmt.Printf("\n🔄 Retry attempt %d of %d...\n", attempt-1, maxRetries-1)
+			time.Sleep(2 * time.Second) // Wait 2 seconds before retry
+		}
+
+		if err := downloadFile(exePath, downloadURL); err != nil {
+			lastErr = err
+			if attempt < maxRetries {
+				fmt.Printf("\n⚠️  Download interrupted, retrying...\n")
+			}
+			continue
+		}
+
+		// Success!
+		fmt.Println("\n✅ Download complete")
+		lastErr = nil
+		break
+	}
+
+	if lastErr != nil {
+		fmt.Printf("\n❌ Download failed after %d attempts: %v\n", maxRetries, lastErr)
+		fmt.Println("\n💡 Tip: Please check your internet connection and try again.")
 		pause()
 		os.Exit(1)
 	}
-	fmt.Println("✅ Download complete")
 
 	// Step 3: Stop existing service if running
 	fmt.Println("\n🛑 Stopping existing service (if any)...")
@@ -108,12 +134,14 @@ func main() {
 	fmt.Println("║     Installation Complete! ✅          ║")
 	fmt.Println("╚════════════════════════════════════════╝")
 	fmt.Println()
-	fmt.Printf("Service Name: %s\n", SERVICE_NAME)
-	fmt.Printf("Install Path: %s\n", exePath)
+	fmt.Println("🎉 The agent is now running in the background!")
+	fmt.Println("\n✨ Service Details:")
+	fmt.Printf("   • Name: %s\n", SERVICE_NAME)
+	fmt.Printf("   • Status: Running\n")
+	fmt.Printf("   • Auto-start: Enabled\n")
 	fmt.Println()
-	fmt.Println("The agent is now running in the background.")
-	fmt.Println("\nPress Enter to exit...")
-	fmt.Scanln()
+	fmt.Println("Closing in 3 seconds...")
+	time.Sleep(3 * time.Second)
 }
 
 type systemInfo struct {
@@ -237,13 +265,16 @@ func downloadFile(filepath string, url string) error {
 
 	// Check server response
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("bad status: %s", resp.Status)
+		return fmt.Errorf("server returned status %d", resp.StatusCode)
 	}
 
 	// Write the body to file with progress
 	total := resp.ContentLength
 	downloaded := int64(0)
 	buffer := make([]byte, 32*1024) // 32KB buffer
+
+	spinChars := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+	spinIdx := 0
 
 	for {
 		n, err := resp.Body.Read(buffer)
@@ -255,7 +286,9 @@ func downloadFile(filepath string, url string) error {
 			downloaded += int64(n)
 			if total > 0 {
 				percent := float64(downloaded) / float64(total) * 100
-				fmt.Printf("\r   Progress: %.1f%% (%d / %d bytes)", percent, downloaded, total)
+				bars := int(percent / 2)
+				fmt.Printf("\r   %s [%-50s] %.1f%% ", spinChars[spinIdx%len(spinChars)], strings.Repeat("█", bars)+strings.Repeat("░", 50-bars), percent)
+				spinIdx++
 			}
 		}
 		if err == io.EOF {
@@ -265,7 +298,7 @@ func downloadFile(filepath string, url string) error {
 			return err
 		}
 	}
-	fmt.Println()
+	fmt.Printf("\r   ✓ [%-50s] 100.0%% \n", strings.Repeat("█", 50))
 	return nil
 }
 
@@ -311,4 +344,28 @@ func startService() error {
 func pause() {
 	fmt.Println("\nPress Enter to exit...")
 	fmt.Scanln()
+}
+
+func runAsAdmin() error {
+	// Get current executable path
+	exePath, err := os.Executable()
+	if err != nil {
+		return err
+	}
+
+	// Convert to UTF16 for Windows API
+	verb := windows.StringToUTF16Ptr("runas")
+	exe := windows.StringToUTF16Ptr(exePath)
+	cwd := windows.StringToUTF16Ptr("")
+	args := windows.StringToUTF16Ptr("")
+
+	// ShellExecute to request elevation
+	var showCmd int32 = 1 // SW_NORMAL
+
+	err = windows.ShellExecute(0, verb, exe, args, cwd, showCmd)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

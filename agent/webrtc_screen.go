@@ -45,19 +45,36 @@ func InitializeWebRTCWithOffer(sessionID string, offerSDP string, onICE func(can
 		delete(webrtcSessions, sessionID)
 	}
 
-	// Configure WebRTC with STUN servers for production connectivity
+	// Configure WebRTC with STUN + TURN servers for production connectivity
 	config := webrtc.Configuration{
 		ICEServers: []webrtc.ICEServer{
+			// Google STUN servers
 			{URLs: []string{"stun:stun.l.google.com:19302"}},
-			{URLs: []string{"stun:stun.l.google.com:5349"}},
 			{URLs: []string{"stun:stun1.l.google.com:3478"}},
-			{URLs: []string{"stun:stun1.l.google.com:5349"}},
 			{URLs: []string{"stun:stun2.l.google.com:19302"}},
-			{URLs: []string{"stun:stun2.l.google.com:5349"}},
-			{URLs: []string{"stun:stun3.l.google.com:3478"}},
-			{URLs: []string{"stun:stun3.l.google.com:5349"}},
-			{URLs: []string{"stun:stun4.l.google.com:19302"}},
-			{URLs: []string{"stun:stun4.l.google.com:5349"}},
+			// Metered.ca free STUN
+			{URLs: []string{"stun:stun.relay.metered.ca:80"}},
+			// Metered.ca free TURN servers (for NAT traversal in production)
+			{
+				URLs:       []string{"turn:global.relay.metered.ca:80"},
+				Username:   "e8dd65c92f6135cabcf2a979",
+				Credential: "5V960dP5iaGPLqXK",
+			},
+			{
+				URLs:       []string{"turn:global.relay.metered.ca:80?transport=tcp"},
+				Username:   "e8dd65c92f6135cabcf2a979",
+				Credential: "5V960dP5iaGPLqXK",
+			},
+			{
+				URLs:       []string{"turn:global.relay.metered.ca:443"},
+				Username:   "e8dd65c92f6135cabcf2a979",
+				Credential: "5V960dP5iaGPLqXK",
+			},
+			{
+				URLs:       []string{"turns:global.relay.metered.ca:443?transport=tcp"},
+				Username:   "e8dd65c92f6135cabcf2a979",
+				Credential: "5V960dP5iaGPLqXK",
+			},
 		},
 		ICETransportPolicy: webrtc.ICETransportPolicyAll,
 		BundlePolicy:       webrtc.BundlePolicyMaxBundle,

@@ -126,22 +126,39 @@ export function ScreenViewer({ deviceId, deviceName }: ScreenViewerProps) {
       console.log('🔧 Creating RTCPeerConnection...')
       const pc = new RTCPeerConnection({
         iceServers: [
+          // Google STUN servers
           { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:stun.l.google.com:5349' },
           { urls: 'stun:stun1.l.google.com:3478' },
-          { urls: 'stun:stun1.l.google.com:5349' },
           { urls: 'stun:stun2.l.google.com:19302' },
-          { urls: 'stun:stun2.l.google.com:5349' },
-          { urls: 'stun:stun3.l.google.com:3478' },
-          { urls: 'stun:stun3.l.google.com:5349' },
-          { urls: 'stun:stun4.l.google.com:19302' },
-          { urls: 'stun:stun4.l.google.com:5349' }
+          // Metered.ca free STUN
+          { urls: 'stun:stun.relay.metered.ca:80' },
+          // Metered.ca free TURN servers (for NAT traversal in production)
+          {
+            urls: 'turn:global.relay.metered.ca:80',
+            username: 'e8dd65c92f6135cabcf2a979',
+            credential: '5V960dP5iaGPLqXK'
+          },
+          {
+            urls: 'turn:global.relay.metered.ca:80?transport=tcp',
+            username: 'e8dd65c92f6135cabcf2a979',
+            credential: '5V960dP5iaGPLqXK'
+          },
+          {
+            urls: 'turn:global.relay.metered.ca:443',
+            username: 'e8dd65c92f6135cabcf2a979',
+            credential: '5V960dP5iaGPLqXK'
+          },
+          {
+            urls: 'turns:global.relay.metered.ca:443?transport=tcp',
+            username: 'e8dd65c92f6135cabcf2a979',
+            credential: '5V960dP5iaGPLqXK'
+          }
         ],
         iceTransportPolicy: 'all',
         iceCandidatePoolSize: 10,
         bundlePolicy: 'max-bundle'
       })
-      console.log('✅ RTCPeerConnection created with Google STUN servers')
+      console.log('✅ RTCPeerConnection created with STUN + TURN servers for production')
 
       const controlChannel = pc.createDataChannel('control', { ordered: true })
       controlChannel.onopen = () => { controlChannelRef.current = controlChannel }
@@ -191,8 +208,14 @@ export function ScreenViewer({ deviceId, deviceName }: ScreenViewerProps) {
         if (pc.connectionState === 'connected') {
           console.log('✅ WebRTC peer connection CONNECTED!')
           setWebrtcConnected(true)
-        } else if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
-          console.log('❌ WebRTC peer connection FAILED/DISCONNECTED')
+        } else if (pc.connectionState === 'failed') {
+          console.log('❌ WebRTC connection FAILED - switching to JPEG fallback mode')
+          setWebrtcConnected(false)
+          // Auto-fallback to JPEG mode
+          setUseWebRTC(false)
+          pc.close()
+        } else if (pc.connectionState === 'disconnected') {
+          console.log('⚠️ WebRTC peer connection DISCONNECTED')
           setWebrtcConnected(false)
         }
       }
@@ -210,7 +233,7 @@ export function ScreenViewer({ deviceId, deviceName }: ScreenViewerProps) {
 
       await new Promise<void>((resolve) => {
         if (pc.iceGatheringState === 'complete') { resolve(); return }
-        const timeout = setTimeout(resolve, 3000)
+        const timeout = setTimeout(resolve, 10000) // 10s for production networks
         pc.onicegatheringstatechange = () => {
           if (pc.iceGatheringState === 'complete') { clearTimeout(timeout); resolve() }
         }

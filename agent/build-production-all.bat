@@ -1,6 +1,6 @@
 @echo off
 REM Build Remote Admin Agent for Production - All Architectures
-REM This builds for both AMD64 (64-bit) and 386 (32-bit) Windows systems
+REM This builds for AMD64 (64-bit), 386 (32-bit), and ARM64 Windows systems
 
 echo ========================================
 echo Building DWS Agent for Production
@@ -12,7 +12,7 @@ REM Create bin directory if it doesn't exist
 if not exist "..\bin" mkdir ..\bin
 if not exist "..\bin\agents" mkdir ..\bin\agents
 
-echo [1/2] Building for Windows AMD64 (64-bit)...
+echo [1/3] Building for Windows AMD64 (64-bit)...
 echo.
 set GOOS=windows
 set GOARCH=amd64
@@ -26,7 +26,7 @@ if %ERRORLEVEL% NEQ 0 (
 
 echo ✓ AMD64 build successful
 echo.
-echo [2/2] Building for Windows 386 (32-bit)...
+echo [2/3] Building for Windows 386 (32-bit)...
 echo.
 set GOARCH=386
 go build -ldflags="-s -w -X main.PRODUCTION=true -H windowsgui" -o ..\bin\agents\dws-agent-386.exe .
@@ -39,6 +39,19 @@ if %ERRORLEVEL% NEQ 0 (
 
 echo ✓ 386 build successful
 echo.
+echo [3/3] Building for Windows ARM64...
+echo.
+set GOARCH=arm64
+go build -ldflags="-s -w -X main.PRODUCTION=true -H windowsgui" -o ..\bin\agents\dws-agent-arm64.exe .
+
+if %ERRORLEVEL% NEQ 0 (
+    echo ERROR: ARM64 build failed!
+    pause
+    exit /b 1
+)
+
+echo ✓ ARM64 build successful
+echo.
 
 REM Copy AMD64 as default
 copy /Y ..\bin\agents\dws-agent-amd64.exe ..\bin\dws-agent.exe >nul
@@ -50,6 +63,7 @@ echo.
 echo Built files:
 echo   - AMD64 (64-bit): ..\bin\agents\dws-agent-amd64.exe
 echo   - 386 (32-bit):   ..\bin\agents\dws-agent-386.exe
+echo   - ARM64:          ..\bin\agents\dws-agent-arm64.exe
 echo   - Default:        ..\bin\dws-agent.exe (AMD64)
 echo.
 echo Features:

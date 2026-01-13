@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	DOWNLOAD_BASE_URL = "https://dws.daucu.com/agents"
+	DOWNLOAD_BASE_URL = "https://dws.daucu.com"
 	SERVICE_NAME      = "RemoteAdminAgent"
 	INSTALL_DIR       = "C:\\Program Files\\RemoteAdmin"
 	EXE_NAME          = "dws-agent.exe"
@@ -209,21 +209,8 @@ func detectArchitecture() string {
 }
 
 func getDownloadURL(archDisplay string) string {
-	arch := getSystemArchitecture()
-	switch arch {
-	case "amd64":
-		return fmt.Sprintf("%s/dws-agent-amd64.exe", DOWNLOAD_BASE_URL)
-	case "386":
-		return fmt.Sprintf("%s/dws-agent-386.exe", DOWNLOAD_BASE_URL)
-	case "arm64":
-		return fmt.Sprintf("%s/dws-agent-arm64.exe", DOWNLOAD_BASE_URL)
-	case "arm":
-		// 32-bit ARM - use ARM64 agent (might work via emulation)
-		return fmt.Sprintf("%s/dws-agent-arm64.exe", DOWNLOAD_BASE_URL)
-	default:
-		// Fallback to AMD64
-		return fmt.Sprintf("%s/dws-agent-amd64.exe", DOWNLOAD_BASE_URL)
-	}
+	// Use single universal agent file for all architectures
+	return fmt.Sprintf("%s/dws-agent.exe", DOWNLOAD_BASE_URL)
 }
 
 func isAdmin() bool {

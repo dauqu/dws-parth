@@ -131,11 +131,13 @@ func InitializeWebRTCWithOffer(sessionID string, offerSDP string, onICE func(can
 				case "mouse":
 					var ctrl MouseControl
 					if err := json.Unmarshal(msg.Data, &ctrl); err == nil {
+						log.Printf("🖱️ Mouse: %s at (%d,%d) screen: %dx%d", ctrl.Action, ctrl.X, ctrl.Y, ctrl.ScreenWidth, ctrl.ScreenHeight)
 						HandleMouseControl(ctrl)
 					}
 				case "keyboard":
 					var ctrl KeyboardControl
 					if err := json.Unmarshal(msg.Data, &ctrl); err == nil {
+						log.Printf("⌨️ Keyboard: %s key=%d keyCode=%s", ctrl.Action, ctrl.Key, ctrl.KeyCode)
 						HandleKeyboardControl(ctrl)
 					}
 				}

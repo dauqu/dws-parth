@@ -144,13 +144,13 @@ type MouseControl struct {
 	Action       string `json:"action"` // move, click, leftclick, rightclick, leftdown, leftup, rightdown, rightup, doubleclick, scroll, dragstart, dragend
 	X            int    `json:"x"`
 	Y            int    `json:"y"`
-	ScreenWidth  int    `json:"screen_width"`
-	ScreenHeight int    `json:"screen_height"`
-	Button       string `json:"button"`      // left, right, middle
-	Delta        int    `json:"delta"`       // Scroll amount
-	DeltaX       int    `json:"delta_x"`     // Horizontal scroll
-	DeltaY       int    `json:"delta_y"`     // Vertical scroll
-	ClickCount   int    `json:"click_count"` // For double/triple clicks
+	ScreenWidth  int    `json:"screenWidth"`
+	ScreenHeight int    `json:"screenHeight"`
+	Button       string `json:"button"`     // left, right, middle
+	Delta        int    `json:"delta"`      // Scroll amount
+	DeltaX       int    `json:"deltaX"`     // Horizontal scroll
+	DeltaY       int    `json:"deltaY"`     // Vertical scroll
+	ClickCount   int    `json:"clickCount"` // For double/triple clicks
 }
 
 // KeyboardControl represents keyboard actions

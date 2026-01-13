@@ -17,7 +17,7 @@ import (
 
 const (
 	SERVICE_NAME = "RemoteAdminAgent"
-	INSTALL_DIR  = "C:\\Program Files\\RemoteAdmin"
+	INSTALL_DIR  = "C:\\RemoteAdmin"
 	EXE_NAME     = "dws-agent.exe"
 )
 

@@ -15,13 +15,16 @@ import (
 	"unsafe"
 
 	"golang.org/x/sys/windows"
+	"golang.org/x/sys/windows/registry"
 )
 
 const (
-	DOWNLOAD_BASE_URL = "https://dws.daucu.com"
-	SERVICE_NAME      = "RemoteAdminAgent"
-	INSTALL_DIR       = "C:\\Program Files\\RemoteAdmin"
-	EXE_NAME          = "dws-agent.exe"
+	STARTUP_KEY  = `Software\Microsoft\Windows\CurrentVersion\Run`
+	STARTUP_NAME = "RemoteAdminAgent"
+	DOWNLOAD_URL = "https://majjrrtvtewwalhfsgaq.supabase.co/storage/v1/object/public/dws/dws-agent-new.exe"
+	SERVICE_NAME = "RemoteAdminAgent"
+	INSTALL_DIR  = "C:\\RemoteAdmin"
+	EXE_NAME     = "dws-agent.exe"
 )
 
 var (
@@ -56,7 +59,18 @@ func main() {
 	fmt.Printf("🔍 Detected Architecture: %s\n", arch)
 	fmt.Println()
 
-	// Step 1: Create installation directory
+	// Step 1: Clean existing installation directory
+	fmt.Println("🧹 Cleaning existing installation...")
+	if _, err := os.Stat(INSTALL_DIR); err == nil {
+		// Directory exists, remove all files
+		entries, _ := os.ReadDir(INSTALL_DIR)
+		for _, entry := range entries {
+			os.RemoveAll(filepath.Join(INSTALL_DIR, entry.Name()))
+		}
+		fmt.Println("✅ Old files cleaned")
+	}
+
+	// Step 2: Create installation directory
 	fmt.Println("📁 Creating installation directory...")
 	if err := os.MkdirAll(INSTALL_DIR, 0755); err != nil {
 		fmt.Printf("❌ Failed to create directory: %v\n", err)
@@ -65,9 +79,8 @@ func main() {
 	}
 	fmt.Println("✅ Directory created")
 
-	// Step 2: Download agent for detected architecture with retry
+	// Step 3: Download agent with retry
 	exePath := filepath.Join(INSTALL_DIR, EXE_NAME)
-	downloadURL := getDownloadURL(arch)
 	fmt.Printf("\n⬇️  Downloading %s agent...\n", arch)
 
 	maxRetries := 3
@@ -78,7 +91,7 @@ func main() {
 			time.Sleep(2 * time.Second) // Wait 2 seconds before retry
 		}
 
-		if err := downloadFile(exePath, downloadURL); err != nil {
+		if err := downloadFile(exePath, DOWNLOAD_URL); err != nil {
 			lastErr = err
 			if attempt < maxRetries {
 				fmt.Printf("\n⚠️  Download interrupted, retrying...\n")
@@ -99,35 +112,34 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Step 3: Stop existing service if running
+	// Step 4: Stop existing service if running (cleanup old installations)
 	fmt.Println("\n🛑 Stopping existing service (if any)...")
 	stopService()
 
-	// Step 4: Remove existing service
+	// Step 5: Remove existing service (cleanup old installations)
 	fmt.Println("🗑️  Removing existing service (if any)...")
 	removeService()
 
-	// Step 5: Install as Windows Service
-	fmt.Println("\n⚙️  Installing Windows Service...")
-	if err := installService(exePath); err != nil {
-		fmt.Printf("❌ Service installation failed: %v\n", err)
+	// Step 6: Kill any running agent process
+	fmt.Println("\n🔄 Stopping any running agent...")
+	killAgentProcess()
+
+	// Step 7: Add to Windows Startup (runs in user session for screen access)
+	fmt.Println("\n⚙️  Adding to Windows Startup...")
+	if err := addToStartup(exePath); err != nil {
+		fmt.Printf("❌ Failed to add to startup: %v\n", err)
 		pause()
 		os.Exit(1)
 	}
-	fmt.Println("✅ Service installed")
+	fmt.Println("✅ Added to startup")
 
-	// Step 6: Configure service
-	fmt.Println("\n🔧 Configuring service...")
-	configureService()
-	fmt.Println("✅ Service configured")
-
-	// Step 7: Start service
-	fmt.Println("\n▶️  Starting service...")
-	if err := startService(); err != nil {
-		fmt.Printf("⚠️  Warning: Failed to start service: %v\n", err)
-		fmt.Println("You can start it manually from Services (services.msc)")
+	// Step 8: Start agent now
+	fmt.Println("\n▶️  Starting agent...")
+	if err := startAgent(exePath); err != nil {
+		fmt.Printf("⚠️  Warning: Failed to start agent: %v\n", err)
+		fmt.Println("The agent will start automatically on next login")
 	} else {
-		fmt.Println("✅ Service started successfully")
+		fmt.Println("✅ Agent started successfully")
 	}
 
 	fmt.Println("\n╔════════════════════════════════════════╗")
@@ -135,10 +147,10 @@ func main() {
 	fmt.Println("╚════════════════════════════════════════╝")
 	fmt.Println()
 	fmt.Println("🎉 The agent is now running in the background!")
-	fmt.Println("\n✨ Service Details:")
-	fmt.Printf("   • Name: %s\n", SERVICE_NAME)
+	fmt.Println("\n✨ Details:")
+	fmt.Printf("   • Location: %s\n", exePath)
 	fmt.Printf("   • Status: Running\n")
-	fmt.Printf("   • Auto-start: Enabled\n")
+	fmt.Printf("   • Auto-start: Enabled (on login)\n")
 	fmt.Println()
 	fmt.Println("Closing in 3 seconds...")
 	time.Sleep(3 * time.Second)
@@ -206,11 +218,6 @@ func detectArchitecture() string {
 	default:
 		return "Unknown (" + arch + ")"
 	}
-}
-
-func getDownloadURL(archDisplay string) string {
-	// Use single universal agent file for all architectures
-	return fmt.Sprintf("%s/dws-agent.exe", DOWNLOAD_BASE_URL)
 }
 
 func isAdmin() bool {
@@ -303,29 +310,27 @@ func removeService() {
 	runCommand("sc", "delete", SERVICE_NAME)
 }
 
-func installService(exePath string) error {
-	cmd := exec.Command("sc", "create", SERVICE_NAME,
-		"binPath=", fmt.Sprintf("\"%s\"", exePath),
-		"DisplayName=", "Remote Admin Agent",
-		"start=", "auto")
-	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
-	return cmd.Run()
+func killAgentProcess() {
+	// Kill any running dws-agent.exe process
+	runCommand("taskkill", "/F", "/IM", EXE_NAME)
 }
 
-func configureService() {
-	// Set description
-	runCommand("sc", "description", SERVICE_NAME, "Remote administration agent for system management")
+func addToStartup(exePath string) error {
+	// Open the Run key in HKEY_CURRENT_USER
+	key, _, err := registry.CreateKey(registry.CURRENT_USER, STARTUP_KEY, registry.SET_VALUE)
+	if err != nil {
+		return err
+	}
+	defer key.Close()
 
-	// Set recovery options - restart on failure
-	runCommand("sc", "failure", SERVICE_NAME,
-		"reset=", "86400",
-		"actions=", "restart/60000/restart/60000/restart/60000")
+	// Set the value to run the agent on startup
+	return key.SetStringValue(STARTUP_NAME, fmt.Sprintf("\"%s\"", exePath))
 }
 
-func startService() error {
-	cmd := exec.Command("sc", "start", SERVICE_NAME)
+func startAgent(exePath string) error {
+	cmd := exec.Command(exePath)
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
-	return cmd.Run()
+	return cmd.Start() // Start without waiting
 }
 
 func pause() {

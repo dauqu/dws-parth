@@ -45,13 +45,20 @@ func InitializeWebRTCWithOffer(sessionID string, offerSDP string, onICE func(can
 		delete(webrtcSessions, sessionID)
 	}
 
-	// Configure WebRTC with STUN servers
+	// Configure WebRTC with multiple STUN servers for better connectivity
 	config := webrtc.Configuration{
 		ICEServers: []webrtc.ICEServer{
 			{
-				URLs: []string{"stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"},
+				URLs: []string{
+					"stun:stun.l.google.com:19302",
+					"stun:stun1.l.google.com:19302",
+					"stun:stun2.l.google.com:19302",
+					"stun:stun3.l.google.com:19302",
+					"stun:stun4.l.google.com:19302",
+				},
 			},
 		},
+		ICETransportPolicy: webrtc.ICETransportPolicyAll,
 	}
 
 	// Create PeerConnection

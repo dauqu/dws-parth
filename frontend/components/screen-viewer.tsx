@@ -113,7 +113,9 @@ export function ScreenViewer({ deviceId, deviceName }: ScreenViewerProps) {
 
   // Initialize WebRTC
   const initWebRTC = async (websocket: WebSocket, retryCount = 0) => {
+    console.log('🔵 InitWebRTC called, retry:', retryCount)
     if (!websocket || websocket.readyState !== WebSocket.OPEN) {
+      console.log('⚠️ WebSocket not ready, state:', websocket?.readyState)
       if (retryCount < 10) {
         setTimeout(() => initWebRTC(websocket, retryCount + 1), 500)
       }
@@ -121,9 +123,19 @@ export function ScreenViewer({ deviceId, deviceName }: ScreenViewerProps) {
     }
 
     try {
+      console.log('🔧 Creating RTCPeerConnection...')
       const pc = new RTCPeerConnection({
-        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'stun:stun2.l.google.com:19302' },
+          { urls: 'stun:stun3.l.google.com:19302' },
+          { urls: 'stun:stun4.l.google.com:19302' }
+        ],
+        iceTransportPolicy: 'all',
+        iceCandidatePoolSize: 10
       })
+      console.log('✅ RTCPeerConnection created with multiple STUN servers')
 
       const controlChannel = pc.createDataChannel('control', { ordered: true })
       controlChannel.onopen = () => { controlChannelRef.current = controlChannel }
@@ -174,15 +186,18 @@ export function ScreenViewer({ deviceId, deviceName }: ScreenViewerProps) {
         }
       })
 
-      websocket.send(JSON.stringify({
+      const offerMessage = {
         type: 'webrtc_signal', device_id: deviceId,
         data: { type: 'offer', sdp: pc.localDescription?.sdp }
-      }))
+      }
+      console.log('📤 Sending WebRTC offer to device:', deviceId)
+      console.log('📤 Offer SDP length:', pc.localDescription?.sdp?.length)
+      websocket.send(JSON.stringify(offerMessage))
 
       setPeerConnection(pc)
       peerConnectionRef.current = pc
     } catch (error) {
-      console.error("WebRTC failed:", error)
+      console.error("❌ WebRTC initialization failed:", error)
     }
   }
 
@@ -208,9 +223,16 @@ export function ScreenViewer({ deviceId, deviceName }: ScreenViewerProps) {
       const message = JSON.parse(event.data)
       
       if ((message.type === "webrtc_answer" || message.type === "webrtc_offer_response") && message.device_id === deviceId) {
+        console.log('📥 Received WebRTC answer from agent:', deviceId)
+        console.log('📥 Answer SDP length:', message.data?.sdp?.length)
         const pc = peerConnectionRef.current
         if (pc && message.data?.sdp) {
+          console.log('✅ Setting remote description...')
           pc.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: message.data.sdp }))
+            .then(() => console.log('✅ Remote description set successfully'))
+            .catch(err => console.error('❌ Failed to set remote description:', err))
+        } else {
+          console.error('❌ No peer connection or SDP in answer')
         }
       }
       

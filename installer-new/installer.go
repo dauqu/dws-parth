@@ -24,8 +24,8 @@ const (
 )
 
 var (
-	kernel32           = windows.NewLazySystemDLL("kernel32.dll")
-	procGetNativeArch  = kernel32.NewProc("GetNativeSystemInfo")
+	kernel32          = windows.NewLazySystemDLL("kernel32.dll")
+	procGetNativeArch = kernel32.NewProc("GetNativeSystemInfo")
 )
 
 func main() {
@@ -140,7 +140,7 @@ const (
 func getSystemArchitecture() string {
 	var si systemInfo
 	procGetNativeArch.Call(uintptr(unsafe.Pointer(&si)))
-	
+
 	switch si.wProcessorArchitecture {
 	case PROCESSOR_ARCHITECTURE_AMD64:
 		return "amd64"
@@ -153,7 +153,7 @@ func getSystemArchitecture() string {
 	default:
 		// Fallback: try to detect from environment
 		if strings.Contains(strings.ToLower(os.Getenv("PROCESSOR_ARCHITECTURE")), "amd64") ||
-		   strings.Contains(strings.ToLower(os.Getenv("PROCESSOR_ARCHITEW6432")), "amd64") {
+			strings.Contains(strings.ToLower(os.Getenv("PROCESSOR_ARCHITEW6432")), "amd64") {
 			return "amd64"
 		}
 		if strings.Contains(strings.ToLower(os.Getenv("PROCESSOR_ARCHITECTURE")), "arm64") {

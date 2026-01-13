@@ -205,13 +205,20 @@ export function ScreenViewer({ deviceId, deviceName }: ScreenViewerProps) {
   useEffect(() => {
     if (!isStreaming) return
 
+    console.log('🚀 Screen viewer starting, WebRTC mode:', useWebRTC)
+    console.log('📡 Connecting to:', API_ENDPOINTS.ws)
+    console.log('🎯 Device ID:', deviceId)
+    
     const websocket = new WebSocket(API_ENDPOINTS.ws)
     
     websocket.onopen = () => {
+      console.log('✅ WebSocket connected!')
       setWs(websocket)
       if (useWebRTC) {
+        console.log('🔄 Starting WebRTC initialization in 500ms...')
         setTimeout(() => initWebRTC(websocket), 500)
       } else {
+        console.log('📸 Starting legacy screen capture mode')
         websocket.send(JSON.stringify({
           type: "screen_capture", device_id: deviceId,
           data: { action: "start", quality, show_cursor: showCursor }

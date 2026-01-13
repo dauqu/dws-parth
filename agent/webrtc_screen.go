@@ -45,29 +45,22 @@ func InitializeWebRTCWithOffer(sessionID string, offerSDP string, onICE func(can
 		delete(webrtcSessions, sessionID)
 	}
 
-	// Configure WebRTC with STUN and TURN servers for production connectivity
+	// Configure WebRTC with STUN servers for production connectivity
 	config := webrtc.Configuration{
 		ICEServers: []webrtc.ICEServer{
-			{
-				URLs: []string{
-					"stun:stun.l.google.com:19302",
-					"stun:stun1.l.google.com:19302",
-					"stun:stun2.l.google.com:19302",
-					"stun:stun3.l.google.com:19302",
-					"stun:stun4.l.google.com:19302",
-				},
-			},
-			// TURN servers for NAT traversal in production
-			{
-				URLs: []string{
-					"turn:openrelay.metered.ca:80",
-					"turn:openrelay.metered.ca:443",
-				},
-				Username:   "openrelayproject",
-				Credential: "openrelayproject",
-			},
+			{URLs: []string{"stun:stun.l.google.com:19302"}},
+			{URLs: []string{"stun:stun.l.google.com:5349"}},
+			{URLs: []string{"stun:stun1.l.google.com:3478"}},
+			{URLs: []string{"stun:stun1.l.google.com:5349"}},
+			{URLs: []string{"stun:stun2.l.google.com:19302"}},
+			{URLs: []string{"stun:stun2.l.google.com:5349"}},
+			{URLs: []string{"stun:stun3.l.google.com:3478"}},
+			{URLs: []string{"stun:stun3.l.google.com:5349"}},
+			{URLs: []string{"stun:stun4.l.google.com:19302"}},
+			{URLs: []string{"stun:stun4.l.google.com:5349"}},
 		},
 		ICETransportPolicy: webrtc.ICETransportPolicyAll,
+		BundlePolicy:       webrtc.BundlePolicyMaxBundle,
 	}
 
 	// Create PeerConnection

@@ -127,26 +127,21 @@ export function ScreenViewer({ deviceId, deviceName }: ScreenViewerProps) {
       const pc = new RTCPeerConnection({
         iceServers: [
           { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'stun:stun.l.google.com:5349' },
+          { urls: 'stun:stun1.l.google.com:3478' },
+          { urls: 'stun:stun1.l.google.com:5349' },
           { urls: 'stun:stun2.l.google.com:19302' },
-          { urls: 'stun:stun3.l.google.com:19302' },
+          { urls: 'stun:stun2.l.google.com:5349' },
+          { urls: 'stun:stun3.l.google.com:3478' },
+          { urls: 'stun:stun3.l.google.com:5349' },
           { urls: 'stun:stun4.l.google.com:19302' },
-          // TURN servers for NAT traversal
-          {
-            urls: 'turn:openrelay.metered.ca:80',
-            username: 'openrelayproject',
-            credential: 'openrelayproject'
-          },
-          {
-            urls: 'turn:openrelay.metered.ca:443',
-            username: 'openrelayproject',
-            credential: 'openrelayproject'
-          }
+          { urls: 'stun:stun4.l.google.com:5349' }
         ],
         iceTransportPolicy: 'all',
-        iceCandidatePoolSize: 10
+        iceCandidatePoolSize: 10,
+        bundlePolicy: 'max-bundle'
       })
-      console.log('✅ RTCPeerConnection created with multiple STUN servers')
+      console.log('✅ RTCPeerConnection created with Google STUN servers')
 
       const controlChannel = pc.createDataChannel('control', { ordered: true })
       controlChannel.onopen = () => { controlChannelRef.current = controlChannel }

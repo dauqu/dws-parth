@@ -9,16 +9,23 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"syscall"
+	"unsafe"
 
 	"golang.org/x/sys/windows"
 )
 
 const (
-	DOWNLOAD_URL = "https://dws.daucu.com/dws-agent.exe"
-	SERVICE_NAME = "RemoteAdminAgent"
-	INSTALL_DIR  = "C:\\Program Files\\RemoteAdmin"
-	EXE_NAME     = "dws-agent.exe"
+	DOWNLOAD_BASE_URL = "https://dws.daucu.com/agents"
+	SERVICE_NAME      = "RemoteAdminAgent"
+	INSTALL_DIR       = "C:\\Program Files\\RemoteAdmin"
+	EXE_NAME          = "dws-agent.exe"
+)
+
+var (
+	kernel32           = windows.NewLazySystemDLL("kernel32.dll")
+	procGetNativeArch  = kernel32.NewProc("GetNativeSystemInfo")
 )
 
 func main() {
@@ -36,6 +43,11 @@ func main() {
 	fmt.Println("╚════════════════════════════════════════╝")
 	fmt.Println()
 
+	// Detect system architecture
+	arch := detectArchitecture()
+	fmt.Printf("🔍 Detected Architecture: %s\n", arch)
+	fmt.Println()
+
 	// Step 1: Create installation directory
 	fmt.Println("📁 Creating installation directory...")
 	if err := os.MkdirAll(INSTALL_DIR, 0755); err != nil {
@@ -45,11 +57,17 @@ func main() {
 	}
 	fmt.Println("✅ Directory created")
 
-	// Step 2: Download agent
+	// Step 2: Download agent for detected architecture
 	exePath := filepath.Join(INSTALL_DIR, EXE_NAME)
-	fmt.Printf("\n⬇️  Downloading agent from %s...\n", DOWNLOAD_URL)
-	if err := downloadFile(exePath, DOWNLOAD_URL); err != nil {
+	downloadURL := getDownloadURL(arch)
+	fmt.Printf("\n⬇️  Downloading %s agent...\n", arch)
+	fmt.Printf("   From: %s\n", downloadURL)
+	if err := downloadFile(exePath, downloadURL); err != nil {
 		fmt.Printf("❌ Download failed: %v\n", err)
+		fmt.Println("\n💡 Tip: Make sure the agent files are uploaded to your server:")
+		fmt.Printf("   %s/dws-agent-amd64.exe\n", DOWNLOAD_BASE_URL)
+		fmt.Printf("   %s/dws-agent-386.exe\n", DOWNLOAD_BASE_URL)
+		fmt.Printf("   %s/dws-agent-arm64.exe\n", DOWNLOAD_BASE_URL)
 		pause()
 		os.Exit(1)
 	}
@@ -96,6 +114,88 @@ func main() {
 	fmt.Println("The agent is now running in the background.")
 	fmt.Println("\nPress Enter to exit...")
 	fmt.Scanln()
+}
+
+type systemInfo struct {
+	wProcessorArchitecture      uint16
+	wReserved                   uint16
+	dwPageSize                  uint32
+	lpMinimumApplicationAddress uintptr
+	lpMaximumApplicationAddress uintptr
+	dwActiveProcessorMask       uintptr
+	dwNumberOfProcessors        uint32
+	dwProcessorType             uint32
+	dwAllocationGranularity     uint32
+	wProcessorLevel             uint16
+	wProcessorRevision          uint16
+}
+
+const (
+	PROCESSOR_ARCHITECTURE_AMD64 = 9
+	PROCESSOR_ARCHITECTURE_ARM64 = 12
+	PROCESSOR_ARCHITECTURE_INTEL = 0
+	PROCESSOR_ARCHITECTURE_ARM   = 5
+)
+
+func getSystemArchitecture() string {
+	var si systemInfo
+	procGetNativeArch.Call(uintptr(unsafe.Pointer(&si)))
+	
+	switch si.wProcessorArchitecture {
+	case PROCESSOR_ARCHITECTURE_AMD64:
+		return "amd64"
+	case PROCESSOR_ARCHITECTURE_ARM64:
+		return "arm64"
+	case PROCESSOR_ARCHITECTURE_INTEL:
+		return "386"
+	case PROCESSOR_ARCHITECTURE_ARM:
+		return "arm"
+	default:
+		// Fallback: try to detect from environment
+		if strings.Contains(strings.ToLower(os.Getenv("PROCESSOR_ARCHITECTURE")), "amd64") ||
+		   strings.Contains(strings.ToLower(os.Getenv("PROCESSOR_ARCHITEW6432")), "amd64") {
+			return "amd64"
+		}
+		if strings.Contains(strings.ToLower(os.Getenv("PROCESSOR_ARCHITECTURE")), "arm64") {
+			return "arm64"
+		}
+		// Default to 386 for unknown
+		return "386"
+	}
+}
+
+func detectArchitecture() string {
+	arch := getSystemArchitecture()
+	switch arch {
+	case "amd64":
+		return "AMD64 (64-bit Intel/AMD)"
+	case "386":
+		return "386 (32-bit Intel/AMD)"
+	case "arm64":
+		return "ARM64 (ARM-based Windows)"
+	case "arm":
+		return "ARM (32-bit ARM)"
+	default:
+		return "Unknown (" + arch + ")"
+	}
+}
+
+func getDownloadURL(archDisplay string) string {
+	arch := getSystemArchitecture()
+	switch arch {
+	case "amd64":
+		return fmt.Sprintf("%s/dws-agent-amd64.exe", DOWNLOAD_BASE_URL)
+	case "386":
+		return fmt.Sprintf("%s/dws-agent-386.exe", DOWNLOAD_BASE_URL)
+	case "arm64":
+		return fmt.Sprintf("%s/dws-agent-arm64.exe", DOWNLOAD_BASE_URL)
+	case "arm":
+		// 32-bit ARM - use ARM64 agent (might work via emulation)
+		return fmt.Sprintf("%s/dws-agent-arm64.exe", DOWNLOAD_BASE_URL)
+	default:
+		// Fallback to AMD64
+		return fmt.Sprintf("%s/dws-agent-amd64.exe", DOWNLOAD_BASE_URL)
+	}
 }
 
 func isAdmin() bool {

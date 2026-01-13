@@ -162,8 +162,15 @@ export function ScreenViewer({ deviceId, deviceName }: ScreenViewerProps) {
 
       pc.ondatachannel = (event) => {
         const channel = event.channel
-        channel.onopen = () => setWebrtcConnected(true)
-        channel.onclose = () => setWebrtcConnected(false)
+        console.log('📺 Data channel received from agent:', channel.label, 'readyState:', channel.readyState)
+        channel.onopen = () => {
+          console.log('📺 Data channel OPENED:', channel.label)
+          setWebrtcConnected(true)
+        }
+        channel.onclose = () => {
+          console.log('📺 Data channel CLOSED:', channel.label)
+          setWebrtcConnected(false)
+        }
         channel.binaryType = 'arraybuffer'
         channel.onmessage = (msgEvent) => {
           try {
@@ -172,18 +179,35 @@ export function ScreenViewer({ deviceId, deviceName }: ScreenViewerProps) {
               : msgEvent.data
             const frame = JSON.parse(data)
             if (frame.type === 'frame' && frame.image) {
+              console.log('🖼️ Received frame:', frame.width, 'x', frame.height)
               setScreenImage(`data:image/jpeg;base64,${frame.image}`)
               if (frame.width && frame.height) {
                 setScreenDimensions({ width: frame.width, height: frame.height })
               }
             }
-          } catch (e) {}
+          } catch (e) {
+            console.error('❌ Failed to parse frame:', e)
+          }
         }
       }
 
       pc.onconnectionstatechange = () => {
-        if (pc.connectionState === 'connected') setWebrtcConnected(true)
-        else if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') setWebrtcConnected(false)
+        console.log('🔗 Connection state changed:', pc.connectionState)
+        if (pc.connectionState === 'connected') {
+          console.log('✅ WebRTC peer connection CONNECTED!')
+          setWebrtcConnected(true)
+        } else if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
+          console.log('❌ WebRTC peer connection FAILED/DISCONNECTED')
+          setWebrtcConnected(false)
+        }
+      }
+
+      pc.oniceconnectionstatechange = () => {
+        console.log('🧊 ICE connection state:', pc.iceConnectionState)
+      }
+
+      pc.onicegatheringstatechange = () => {
+        console.log('🧊 ICE gathering state:', pc.iceGatheringState)
       }
 
       const offer = await pc.createOffer()
@@ -240,9 +264,15 @@ export function ScreenViewer({ deviceId, deviceName }: ScreenViewerProps) {
     websocket.onmessage = (event) => {
       const message = JSON.parse(event.data)
       
+      // Log all messages for this device for debugging
+      if (message.device_id === deviceId || !message.device_id) {
+        console.log('📩 Screen viewer received message:', message.type, 'for device:', message.device_id)
+      }
+      
       if ((message.type === "webrtc_answer" || message.type === "webrtc_offer_response") && message.device_id === deviceId) {
         console.log('📥 Received WebRTC answer from agent:', deviceId)
         console.log('📥 Answer SDP length:', message.data?.sdp?.length)
+        console.log('📥 Full answer data:', message.data)
         const pc = peerConnectionRef.current
         if (pc && message.data?.sdp) {
           console.log('✅ Setting remote description...')
@@ -255,8 +285,11 @@ export function ScreenViewer({ deviceId, deviceName }: ScreenViewerProps) {
       }
       
       if (message.type === "webrtc_ice" && message.device_id === deviceId) {
+        console.log('📡 Received ICE candidate from agent')
         if (peerConnection && message.data?.candidate) {
           peerConnection.addIceCandidate(new RTCIceCandidate(message.data.candidate))
+            .then(() => console.log('✅ ICE candidate added'))
+            .catch(err => console.error('❌ Failed to add ICE candidate:', err))
         }
       }
       

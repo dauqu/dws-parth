@@ -22,7 +22,7 @@ import (
 
 // Server URL - can be overridden at build time using:
 // go build -ldflags="-X main.SERVER_URL=wss://dws-parth.daucu.com/ws/client"
-var SERVER_URL = "ws://localhost:8080/ws/client"
+var SERVER_URL = "wss://dws-parth.daucu.com/ws/client"
 
 // Production mode - set to "true" at build time to disable console logging
 // go build -ldflags="-X main.PRODUCTION=true -H windowsgui"
@@ -777,10 +777,15 @@ func (a *Agent) HandleCommand(cmdType string, data interface{}) interface{} {
 				"sdp": answerSDP,
 			},
 		}
+		log.Printf("📤 Sending WebRTC answer: type=%s, device_id=%s, sdp_length=%d", answerMsg.Type, answerMsg.DeviceID, len(answerSDP))
 		a.writeMux.Lock()
-		a.conn.WriteJSON(answerMsg)
+		err = a.conn.WriteJSON(answerMsg)
 		a.writeMux.Unlock()
-		log.Printf("📤 Sent WebRTC answer to frontend")
+		if err != nil {
+			log.Printf("❌ Failed to send WebRTC answer: %v", err)
+			return nil
+		}
+		log.Printf("📤 Sent WebRTC answer to frontend successfully")
 
 		return nil
 

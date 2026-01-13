@@ -56,6 +56,10 @@ func HandleWebRTCSignaling(frontendConn *websocket.Conn, msg Message) {
 			return
 		}
 
+		// Initialize WebRTC session to track frontend connection
+		initWebRTCSession(frontendConn, msg.DeviceID, msg.DeviceID)
+		log.Printf("✅ WebRTC session initialized for device %s with frontend", msg.DeviceID)
+
 		// Create the data payload for the agent
 		offerData := map[string]interface{}{
 			"type": "offer",

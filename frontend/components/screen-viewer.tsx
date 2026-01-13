@@ -160,8 +160,40 @@ export function ScreenViewer({ deviceId, deviceName }: ScreenViewerProps) {
       })
       console.log('✅ RTCPeerConnection created with STUN + TURN servers for production')
 
+      // Create control channel for mouse/keyboard input
       const controlChannel = pc.createDataChannel('control', { ordered: true })
-      controlChannel.onopen = () => { controlChannelRef.current = controlChannel }
+      controlChannel.onopen = () => { 
+        console.log('🎮 Control channel opened')
+        controlChannelRef.current = controlChannel 
+      }
+
+      // Create screen channel for receiving frames from agent
+      const screenChannel = pc.createDataChannel('screen', { ordered: true })
+      screenChannel.binaryType = 'arraybuffer'
+      screenChannel.onopen = () => {
+        console.log('📺 Screen channel OPENED')
+        setWebrtcConnected(true)
+      }
+      screenChannel.onclose = () => {
+        console.log('📺 Screen channel CLOSED')
+        setWebrtcConnected(false)
+      }
+      screenChannel.onmessage = (msgEvent) => {
+        try {
+          let data = msgEvent.data instanceof ArrayBuffer 
+            ? new TextDecoder().decode(msgEvent.data) 
+            : msgEvent.data
+          const frame = JSON.parse(data)
+          if (frame.type === 'frame' && frame.image) {
+            setScreenImage(`data:image/jpeg;base64,${frame.image}`)
+            if (frame.width && frame.height) {
+              setScreenDimensions({ width: frame.width, height: frame.height })
+            }
+          }
+        } catch (e) {
+          console.error('❌ Failed to parse frame:', e)
+        }
+      }
 
       pc.onicecandidate = (event) => {
         if (event.candidate && websocket.readyState === WebSocket.OPEN) {
@@ -172,33 +204,35 @@ export function ScreenViewer({ deviceId, deviceName }: ScreenViewerProps) {
         }
       }
 
+      // Also handle any data channels coming from agent (fallback)
       pc.ondatachannel = (event) => {
         const channel = event.channel
         console.log('📺 Data channel received from agent:', channel.label, 'readyState:', channel.readyState)
-        channel.onopen = () => {
-          console.log('📺 Data channel OPENED:', channel.label)
-          setWebrtcConnected(true)
-        }
-        channel.onclose = () => {
-          console.log('📺 Data channel CLOSED:', channel.label)
-          setWebrtcConnected(false)
-        }
-        channel.binaryType = 'arraybuffer'
-        channel.onmessage = (msgEvent) => {
-          try {
-            let data = msgEvent.data instanceof ArrayBuffer 
-              ? new TextDecoder().decode(msgEvent.data) 
-              : msgEvent.data
-            const frame = JSON.parse(data)
-            if (frame.type === 'frame' && frame.image) {
-              console.log('🖼️ Received frame:', frame.width, 'x', frame.height)
-              setScreenImage(`data:image/jpeg;base64,${frame.image}`)
-              if (frame.width && frame.height) {
-                setScreenDimensions({ width: frame.width, height: frame.height })
+        if (channel.label === 'screen') {
+          channel.binaryType = 'arraybuffer'
+          channel.onopen = () => {
+            console.log('📺 Agent screen channel OPENED')
+            setWebrtcConnected(true)
+          }
+          channel.onclose = () => {
+            console.log('📺 Agent screen channel CLOSED')
+            setWebrtcConnected(false)
+          }
+          channel.onmessage = (msgEvent) => {
+            try {
+              let data = msgEvent.data instanceof ArrayBuffer 
+                ? new TextDecoder().decode(msgEvent.data) 
+                : msgEvent.data
+              const frame = JSON.parse(data)
+              if (frame.type === 'frame' && frame.image) {
+                setScreenImage(`data:image/jpeg;base64,${frame.image}`)
+                if (frame.width && frame.height) {
+                  setScreenDimensions({ width: frame.width, height: frame.height })
+                }
               }
+            } catch (e) {
+              console.error('❌ Failed to parse frame:', e)
             }
-          } catch (e) {
-            console.error('❌ Failed to parse frame:', e)
           }
         }
       }

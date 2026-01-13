@@ -96,30 +96,22 @@ func InitializeWebRTCWithOffer(sessionID string, offerSDP string, onICE func(can
 		onICECandidate: onICE,
 	}
 
-	// Create data channel for screen frames
-	dataChannel, err := peerConnection.CreateDataChannel("screen", &webrtc.DataChannelInit{
-		Ordered: func() *bool { v := true; return &v }(),
-	})
-	if err != nil {
-		peerConnection.Close()
-		return nil, "", fmt.Errorf("failed to create data channel: %v", err)
-	}
-	session.dataChannel = dataChannel
-
-	// Handle data channel open
-	dataChannel.OnOpen(func() {
-		log.Printf("📺 Data channel opened, starting screen streaming...")
-		go session.StartStreaming()
-	})
-
-	dataChannel.OnClose(func() {
-		log.Printf("📺 Data channel closed")
-		session.StopStreaming()
-	})
-
-	// Handle incoming data channels from frontend (control channel)
+	// Handle incoming data channels from frontend
+	// The browser (offerer) creates data channels, agent (answerer) receives them
 	peerConnection.OnDataChannel(func(dc *webrtc.DataChannel) {
-		log.Printf("🎮 Received data channel: %s", dc.Label())
+		log.Printf("🎮 Received data channel: %s (state: %s)", dc.Label(), dc.ReadyState().String())
+
+		if dc.Label() == "screen" {
+			session.dataChannel = dc
+			dc.OnOpen(func() {
+				log.Printf("📺 Screen data channel opened, starting streaming...")
+				go session.StartStreaming()
+			})
+			dc.OnClose(func() {
+				log.Printf("📺 Screen data channel closed")
+				session.StopStreaming()
+			})
+		}
 
 		if dc.Label() == "control" {
 			dc.OnOpen(func() {
@@ -127,7 +119,6 @@ func InitializeWebRTCWithOffer(sessionID string, offerSDP string, onICE func(can
 			})
 
 			dc.OnMessage(func(msg webrtc.DataChannelMessage) {
-				// Parse control command to get type
 				var cmd map[string]interface{}
 				if err := json.Unmarshal(msg.Data, &cmd); err != nil {
 					log.Printf("⚠️ Failed to parse control command: %v", err)

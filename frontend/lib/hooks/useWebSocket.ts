@@ -3,6 +3,11 @@
 import { useEffect, useState } from 'react'
 import { wsService } from '../websocket-service'
 
+// TODO: Replace with your actual WebSocket endpoint or import from config
+const API_ENDPOINTS = {
+  ws: "ws://localhost:8080/ws"
+}
+
 export interface SystemInfo {
   cpu_usage: number
   cpu_cores: number
@@ -31,7 +36,7 @@ export function useSystemMetrics(deviceId: string) {
     const handleMessage = (message: any) => {
       // Only process system_update messages for this specific device
       if (message.type === 'system_update' && message.device_id === deviceId) {
-        console.log('📊 System update for', deviceId, ':', message.data)
+        // console.log('📊 System update for', deviceId, ':', message.data)
         setSystemInfo(message.data)
         setIsConnected(true)
       }

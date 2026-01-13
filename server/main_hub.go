@@ -135,12 +135,16 @@ func handleAgentWebSocket(w http.ResponseWriter, r *http.Request) {
 		case "webrtc_offer", "webrtc_answer", "webrtc_ice":
 			// Forward WebRTC signaling from agent to frontend
 			if deviceID != "" {
-				log.Printf("📡 Forwarding WebRTC %s from device %s", msg.Type, deviceID)
+				log.Printf("📡 Forwarding WebRTC %s from device %s to all frontends", msg.Type, deviceID)
+				if msg.Type == "webrtc_answer" {
+					log.Printf("🔍 WebRTC answer data: %s", string(msg.Data))
+				}
 				hub.broadcastToFrontends(map[string]interface{}{
 					"type":      msg.Type,
 					"device_id": deviceID,
 					"data":      msg.Data,
 				})
+				log.Printf("✅ WebRTC %s broadcasted to frontends", msg.Type)
 			}
 
 		default:

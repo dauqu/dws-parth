@@ -81,4 +81,4 @@ chmod +x ../bin/server_hub
 
 sudo systemctl daemon-reload
 sudo systemctl restart dws
-sudo systemctl status dws-parth
+sudo systemctl status dws

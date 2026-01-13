@@ -34,7 +34,7 @@ class WebSocketService {
       this.ws.onmessage = (event) => {
         try {
           const message = JSON.parse(event.data)
-          console.log('📨 WebSocket message:', message.type, 'device:', message.device_id)
+          // console.log('📨 WebSocket message:', message.type, 'device:', message.device_id)
 
           // Notify all handlers
           this.handlers.forEach(handler => {

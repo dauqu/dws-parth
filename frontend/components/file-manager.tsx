@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -56,6 +55,7 @@ interface FileManagerProps {
 }
 
 interface FileItem {
+  mod_time: unknown
   name: string
   path: string
   size: number
@@ -508,119 +508,126 @@ export function FileManager({ deviceId, userId }: FileManagerProps) {
   }
 
   return (
-    <Card className="border-slate-800 bg-slate-900/50">
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-white flex items-center gap-2">
-            <FolderOpen className="h-5 w-5" />
-            File Manager
-          </CardTitle>
-          <div className="flex items-center gap-2">
-            <input
-              ref={fileInputRef}
-              type="file"
-              className="hidden"
-              onChange={handleFileUpload}
-            />
-            <Button
-              variant="outline"
-              size="sm"
-              className="border-slate-700 bg-slate-800 text-white hover:bg-slate-700"
-              onClick={handleUploadClick}
-              disabled={isUploading}
-            >
-              <Upload className={`mr-2 h-4 w-4 ${isUploading ? 'animate-pulse' : ''}`} />
-              {isUploading ? 'Uploading...' : 'Upload'}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="border-slate-700 bg-slate-800 text-white hover:bg-slate-700"
-              onClick={handleCreateFile}
-            >
-              <FilePlus className="mr-2 h-4 w-4" />
-              New File
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="border-slate-700 bg-slate-800 text-white hover:bg-slate-700"
-              onClick={handleCreateFolder}
-            >
-              <FolderPlus className="mr-2 h-4 w-4" />
-              New Folder
-            </Button>
-            {clipboard && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="border-green-700 bg-green-950/20 text-green-400 hover:bg-green-950/40"
-                onClick={handlePaste}
-              >
-                <ClipboardPaste className="mr-2 h-4 w-4" />
-                Paste
-              </Button>
-            )}
-            <Button
-              variant="outline"
-              size="sm"
-              className="border-slate-700 bg-slate-800 text-white hover:bg-slate-700"
-              onClick={handleRefresh}
-              disabled={isLoading}
-            >
-              <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-              Refresh
-            </Button>
+    <div className="flex flex-col h-full">
+      {/* Compact Toolbar */}
+      <div className="flex items-center h-10 px-3 shrink-0 bg-[#111] rounded-t-lg border-b border-slate-800">
+        {/* Left - Title & Path */}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
+            <FolderOpen className="h-3.5 w-3.5 text-blue-400" />
+            <span className="text-white font-medium">Files</span>
           </div>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="flex items-center gap-2 mb-3">
-          <Button
-            variant="outline"
-            size="sm"
-            className="border-slate-700 bg-slate-800 text-white hover:bg-slate-700"
-            onClick={handleGoUp}
-            disabled={currentPath === "C:\\" || currentPath === "C:/"}
-          >
-            ⬆️ Up
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="border-slate-700 bg-slate-800 text-white hover:bg-slate-700"
-            onClick={handleGoHome}
-          >
-            🏠 Home
-          </Button>
-          <div className="text-sm text-slate-400 flex-1">
-            <span className="text-slate-500">Path:</span> <span className="text-white font-mono">{currentPath}</span>
+          <div className="hidden sm:flex items-center gap-1 text-[10px] text-slate-500">
+            <span>|</span>
+            <span className="font-mono truncate max-w-[200px]">{currentPath}</span>
           </div>
         </div>
         
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <Input
-              placeholder="Search files and folders..."
-              className="border-slate-700 bg-slate-800 pl-10 text-white placeholder:text-slate-500"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
+        <div className="flex-1" />
+        
+        {/* Navigation */}
+        <div className="flex items-center gap-0.5 mr-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 w-7 p-0 text-slate-400 hover:text-white hover:bg-white/10"
+            onClick={handleGoUp}
+            disabled={currentPath === "C:\\" || currentPath === "C:/"}
+            title="Go up"
+          >
+            <span className="text-xs">↑</span>
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 w-7 p-0 text-slate-400 hover:text-white hover:bg-white/10"
+            onClick={handleGoHome}
+            title="Home"
+          >
+            <span className="text-xs">🏠</span>
+          </Button>
         </div>
 
-        <div className="rounded-md border border-slate-800">
-          <Table>
-            <TableHeader>
-              <TableRow className="border-slate-800 hover:bg-slate-800/50">
-                <TableHead className="text-slate-400">Name</TableHead>
-                <TableHead className="text-slate-400">Size</TableHead>
-                <TableHead className="text-slate-400">Modified</TableHead>
-                <TableHead className="text-slate-400 text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
+        {/* Actions */}
+        <div className="flex items-center gap-0.5">
+          <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileUpload} />
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 w-7 p-0 text-slate-400 hover:text-white hover:bg-white/10"
+            onClick={handleUploadClick}
+            disabled={isUploading}
+            title="Upload"
+          >
+            <Upload className={`w-3.5 h-3.5 ${isUploading ? 'animate-pulse' : ''}`} />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 w-7 p-0 text-slate-400 hover:text-white hover:bg-white/10"
+            onClick={handleCreateFile}
+            title="New File"
+          >
+            <FilePlus className="w-3.5 h-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 w-7 p-0 text-slate-400 hover:text-white hover:bg-white/10"
+            onClick={handleCreateFolder}
+            title="New Folder"
+          >
+            <FolderPlus className="w-3.5 h-3.5" />
+          </Button>
+          {clipboard && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 w-7 p-0 text-green-400 hover:text-green-300 hover:bg-white/10"
+              onClick={handlePaste}
+              title="Paste"
+            >
+              <ClipboardPaste className="w-3.5 h-3.5" />
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 w-7 p-0 text-slate-400 hover:text-white hover:bg-white/10"
+            onClick={handleRefresh}
+            disabled={isLoading}
+            title="Refresh"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+          </Button>
+        </div>
+      </div>
+
+      {/* Search bar */}
+      <div className="px-3 py-2 bg-[#0a0a0a] border-b border-slate-800">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500" />
+          <Input
+            placeholder="Search files..."
+            className="h-8 text-xs border-slate-700 bg-slate-800/50 pl-8 text-white placeholder:text-slate-500"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+      </div>
+
+      {/* File Table */}
+      <div className="flex-1 min-h-0 overflow-auto bg-[#0a0a0a] rounded-b-lg">
+        <Table>
+          <TableHeader className="sticky top-0 bg-[#0a0a0a] z-10">
+            <TableRow className="border-slate-800 hover:bg-transparent">
+              <TableHead className="text-slate-400 text-xs">Name</TableHead>
+              <TableHead className="text-slate-400 text-xs">Size</TableHead>
+              <TableHead className="text-slate-400 text-xs">Modified</TableHead>
+              <TableHead className="text-slate-400 text-xs text-right w-16">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
               {isLoading ? (
                 <TableRow>
                   <TableCell colSpan={4} className="text-center text-slate-400 py-8">
@@ -815,7 +822,6 @@ export function FileManager({ deviceId, userId }: FileManagerProps) {
             </TableBody>
           </Table>
         </div>
-      </CardContent>
 
       {/* View File Dialog */}
       <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
@@ -896,6 +902,6 @@ export function FileManager({ deviceId, userId }: FileManagerProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </Card>
+    </div>
   )
 }

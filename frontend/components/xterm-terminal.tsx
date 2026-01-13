@@ -200,6 +200,11 @@ export function XtermTerminal({ deviceId, userId }: XtermTerminalProps) {
     websocket.onmessage = (event) => {
       const message = JSON.parse(event.data)
 
+      // Check if this message is for our device
+      if (message.device_id && message.device_id !== deviceId) {
+        return // Ignore messages for other devices
+      }
+
       if (message.type === "shell_response") {
         if (message.data?.success && message.data?.data?.output) {
           const output = message.data.data.output
@@ -236,23 +241,23 @@ export function XtermTerminal({ deviceId, userId }: XtermTerminalProps) {
 
     websocket.onerror = (error) => {
       console.error("Shell WebSocket error:", error)
-      if (xtermRef.current) {
+      if (xtermRef.current && websocket.readyState === WebSocket.OPEN) {
         xtermRef.current.writeln("\r\n\x1b[31m✗ Connection error\x1b[0m")
       }
       setIsConnected(false)
     }
 
-    websocket.onclose = () => {
-      console.log("🔌 WebSocket disconnected")
-      if (xtermRef.current) {
+    websocket.onclose = (event) => {
+      console.log("🔌 WebSocket disconnected", event.code, event.reason)
+      if (xtermRef.current && event.code !== 1000 && event.wasClean === false) {
         xtermRef.current.writeln("\r\n\x1b[33m✗ Connection closed\x1b[0m")
       }
       setIsConnected(false)
     }
 
     return () => {
-      if (websocket.readyState === WebSocket.OPEN) {
-        websocket.close()
+      if (websocket.readyState === WebSocket.OPEN || websocket.readyState === WebSocket.CONNECTING) {
+        websocket.close(1000, 'Component unmounting')
       }
     }
   }, [])
@@ -278,6 +283,7 @@ export function XtermTerminal({ deviceId, userId }: XtermTerminalProps) {
       type: "shell_command",
       device_id: deviceId,
       data: {
+        session_id: deviceId,
         command: command,
         shell_type: shellType
       }

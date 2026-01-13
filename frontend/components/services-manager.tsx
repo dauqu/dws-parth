@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -163,75 +162,68 @@ export function ServicesManager({ deviceId, userId }: ServicesManagerProps) {
   }
 
   return (
-    <Card className="border-slate-800 bg-slate-900/50">
-      <CardHeader>
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-white flex items-center gap-2">
-              <Settings className="h-5 w-5" />
-              Services Manager
-            </CardTitle>
-            <Button
-              variant="outline"
-              size="sm"
-              className="border-slate-700 bg-slate-800 text-white hover:bg-slate-700 md:hidden"
-              onClick={handleRefresh}
-              disabled={isLoading}
-            >
-              <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-            </Button>
-          </div>
-          <div className="flex flex-col gap-2 md:flex-row md:items-center">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-              <Input
-                placeholder="Search services..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="border-slate-700 bg-slate-800 pl-10 text-white placeholder:text-slate-500"
-              />
-            </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full border-slate-700 bg-slate-800 text-white md:w-[180px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="border-slate-700 bg-slate-800">
-                <SelectItem value="all" className="text-white">
-                  All Services
-                </SelectItem>
-                <SelectItem value="running" className="text-white">
-                  Running
-                </SelectItem>
-                <SelectItem value="stopped" className="text-white">
-                  Stopped
-                </SelectItem>
-              </SelectContent>
-            </Select>
-            <Button
-              variant="outline"
-              size="sm"
-              className="hidden border-slate-700 bg-slate-800 text-white hover:bg-slate-700 md:flex"
-              onClick={handleRefresh}
-              disabled={isLoading}
-            >
-              <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-              Refresh
-            </Button>
-          </div>
+    <div className="flex flex-col h-full">
+      {/* Compact Toolbar */}
+      <div className="flex items-center h-10 px-3 shrink-0 bg-[#111] rounded-t-lg border-b border-slate-800">
+        {/* Left - Title */}
+        <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
+          <Settings className="h-3.5 w-3.5 text-orange-400" />
+          <span className="text-white font-medium">Services</span>
+          <span className="text-slate-500 ml-1">{services.length}</span>
         </div>
-      </CardHeader>
-      <CardContent>
-        <div className="rounded-md border border-slate-800">
-          <Table>
-            <TableHeader>
-              <TableRow className="border-slate-800 hover:bg-slate-800/50">
-                <TableHead className="text-slate-400">Service Name</TableHead>
-                <TableHead className="text-slate-400">Display Name</TableHead>
-                <TableHead className="text-slate-400">Status</TableHead>
-                <TableHead className="text-slate-400 text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
+        
+        <div className="flex-1" />
+        
+        {/* Filter & Actions */}
+        <div className="flex items-center gap-2">
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-24 h-7 text-[10px] border-slate-700 bg-slate-800/50 text-white">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="border-slate-700 bg-slate-800">
+              <SelectItem value="all" className="text-white text-xs">All</SelectItem>
+              <SelectItem value="running" className="text-white text-xs">Running</SelectItem>
+              <SelectItem value="stopped" className="text-white text-xs">Stopped</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 w-7 p-0 text-slate-400 hover:text-white hover:bg-white/10"
+            onClick={handleRefresh}
+            disabled={isLoading}
+            title="Refresh"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+          </Button>
+        </div>
+      </div>
+
+      {/* Search bar */}
+      <div className="px-3 py-2 bg-[#0a0a0a] border-b border-slate-800">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500" />
+          <Input
+            placeholder="Search services..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="h-8 text-xs border-slate-700 bg-slate-800/50 pl-8 text-white placeholder:text-slate-500"
+          />
+        </div>
+      </div>
+
+      {/* Services Table */}
+      <div className="flex-1 min-h-0 overflow-auto bg-[#0a0a0a] rounded-b-lg">
+        <Table>
+          <TableHeader className="sticky top-0 bg-[#0a0a0a] z-10">
+            <TableRow className="border-slate-800 hover:bg-transparent">
+              <TableHead className="text-slate-400 text-xs">Name</TableHead>
+              <TableHead className="text-slate-400 text-xs">Display Name</TableHead>
+              <TableHead className="text-slate-400 text-xs">Status</TableHead>
+              <TableHead className="text-slate-400 text-xs text-right w-16">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
               {isLoading ? (
                 <TableRow>
                   <TableCell colSpan={4} className="text-center text-slate-400 py-8">
@@ -425,7 +417,6 @@ export function ServicesManager({ deviceId, userId }: ServicesManagerProps) {
             </TableBody>
           </Table>
         </div>
-      </CardContent>
-    </Card>
+    </div>
   )
 }

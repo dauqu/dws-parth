@@ -1,3 +1,6 @@
+//go:build windows
+// +build windows
+
 package main
 
 import (
@@ -34,7 +37,29 @@ func HandleShellCommandConPTY(session *ShellSession, command string) Response {
 			args = []string{"/Q"} // Quiet mode, no version info
 		}
 
-		// Change to working directory first
+		err = session.conpty.StartProcess(shellCmd, args)
+		if err != nil {
+			session.conpty.Close()
+			session.conpty = nil
+			session.useConPTY = false
+			return Response{Success: false, Message: fmt.Sprintf("Failed to start shell: %v", err)}
+		}
+
+		log.Printf("Started %s in ConPTY session", shellCmd)
+
+		// Wait for shell to initialize
+		time.Sleep(500 * time.Millisecond)
+
+		// Drain any initial output (welcome message, prompt, etc.)
+		buf := make([]byte, 8192)
+		for {
+			session.conpty.Read(buf)
+			// Just drain, don't wait too long
+			time.Sleep(50 * time.Millisecond)
+			break
+		}
+
+		// Change to working directory after shell has started
 		if session.WorkingDir != "" {
 			if session.Type == "powershell" {
 				// PowerShell: Set-Location
@@ -45,17 +70,10 @@ func HandleShellCommandConPTY(session *ShellSession, command string) Response {
 				cdCmd := fmt.Sprintf("cd /d \"%s\"\n", session.WorkingDir)
 				session.conpty.Write([]byte(cdCmd))
 			}
+			// Wait for cd to complete and drain output
+			time.Sleep(200 * time.Millisecond)
+			session.conpty.Read(buf)
 		}
-
-		err = session.conpty.StartProcess(shellCmd, args)
-		if err != nil {
-			session.conpty.Close()
-			session.conpty = nil
-			session.useConPTY = false
-			return Response{Success: false, Message: fmt.Sprintf("Failed to start shell: %v", err)}
-		}
-
-		log.Printf("Started %s in ConPTY session", shellCmd)
 	}
 
 	// Send command to ConPTY

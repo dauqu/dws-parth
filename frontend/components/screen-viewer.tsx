@@ -1,19 +1,14 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
-import { Monitor, Maximize2, RefreshCw, MousePointer, Minimize2, Maximize, X, Expand, Shrink, Settings, Zap, Wifi, WifiOff, Mic, MicOff, AlertTriangle, Video } from "lucide-react"
-import { Badge } from "@/components/ui/badge"
+import { Monitor, MousePointer, Expand, Shrink, Settings, Wifi, WifiOff, X, Play, Square, MoreVertical, Maximize2 } from "lucide-react"
 import { API_ENDPOINTS } from "@/lib/api-config"
 
 interface ScreenViewerProps {
@@ -28,11 +23,11 @@ export function ScreenViewer({ deviceId, deviceName }: ScreenViewerProps) {
   const [ws, setWs] = useState<WebSocket | null>(null)
   
   // WebRTC State
-  const [useWebRTC, setUseWebRTC] = useState(true) // Try WebRTC first
+  const [useWebRTC, setUseWebRTC] = useState(true)
   const [peerConnection, setPeerConnection] = useState<RTCPeerConnection | null>(null)
   const [webrtcConnected, setWebrtcConnected] = useState(false)
   
-  // Fallback JPEG State
+  // Screen State
   const [screenImage, setScreenImage] = useState<string | null>(null)
   const [cursorPos, setCursorPos] = useState<{ x: number; y: number } | null>(null)
   const [screenDimensions, setScreenDimensions] = useState<{ width: number; height: number } | null>(null)
@@ -42,11 +37,7 @@ export function ScreenViewer({ deviceId, deviceName }: ScreenViewerProps) {
   const [fps, setFps] = useState<number>(30)
   const [showCursor, setShowCursor] = useState<boolean>(true)
   const [networkStatus, setNetworkStatus] = useState<'good' | 'medium' | 'slow'>('good')
-  const [showSlowNetworkBanner, setShowSlowNetworkBanner] = useState(false)
-  const [voiceEnabled, setVoiceEnabled] = useState(false)
-  const [adaptiveMode, setAdaptiveMode] = useState(true)
   
-  const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLImageElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null)
@@ -76,242 +67,122 @@ export function ScreenViewer({ deviceId, deviceName }: ScreenViewerProps) {
 
   // Mouse handlers
   const handleMouseClick = (e: React.MouseEvent<HTMLImageElement>) => {
+    if (!controlEnabled) return
     const coords = getScaledCoords(e)
     sendControl({ type: 'mouse', action: 'leftclick', ...coords })
   }
 
   const handleMouseDoubleClick = (e: React.MouseEvent<HTMLImageElement>) => {
+    if (!controlEnabled) return
     e.preventDefault()
     const coords = getScaledCoords(e)
     sendControl({ type: 'mouse', action: 'doubleclick', ...coords })
   }
 
   const handleContextMenu = (e: React.MouseEvent<HTMLImageElement>) => {
+    if (!controlEnabled) return
     e.preventDefault()
     const coords = getScaledCoords(e)
     sendControl({ type: 'mouse', action: 'rightclick', ...coords })
   }
 
   const handleMouseMove = (e: React.MouseEvent<HTMLImageElement>) => {
-    // Only send move on button press (drag)
-    if (e.buttons > 0) {
-      const coords = getScaledCoords(e)
-      sendControl({ type: 'mouse', action: 'move', ...coords })
-    }
+    if (!controlEnabled || e.buttons === 0) return
+    const coords = getScaledCoords(e)
+    sendControl({ type: 'mouse', action: 'move', ...coords })
   }
 
   const handleWheel = (e: React.WheelEvent<HTMLImageElement>) => {
+    if (!controlEnabled) return
     e.preventDefault()
     const coords = getScaledCoords(e as any)
-    sendControl({ 
-      type: 'mouse', 
-      action: 'scroll', 
-      deltaY: e.deltaY > 0 ? -1 : 1, // Invert for natural scroll
-      ...coords 
-    })
+    sendControl({ type: 'mouse', action: 'scroll', deltaY: e.deltaY > 0 ? -1 : 1, ...coords })
   }
 
-  // Keyboard handler
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (!controlEnabled) return
     e.preventDefault()
     sendControl({
       type: 'keyboard',
       action: 'keypress',
       keyCode: e.code,
       key: e.keyCode,
-      modifiers: [
-        e.ctrlKey && 'ctrl',
-        e.altKey && 'alt',
-        e.shiftKey && 'shift',
-        e.metaKey && 'meta'
-      ].filter(Boolean)
+      modifiers: [e.ctrlKey && 'ctrl', e.altKey && 'alt', e.shiftKey && 'shift', e.metaKey && 'meta'].filter(Boolean)
     })
   }
 
-  // Initialize WebRTC Peer Connection - accepts websocket directly to avoid React closure issues
+  // Initialize WebRTC
   const initWebRTC = async (websocket: WebSocket, retryCount = 0) => {
-    // Check if WebSocket is ready AND open
-    if (!websocket) {
-      console.error("WebSocket not provided to initWebRTC")
-      return
-    }
-    
-    // Stop if WebSocket is CLOSED (readyState 3) or CLOSING (readyState 2)
-    if (websocket.readyState === WebSocket.CLOSED || websocket.readyState === WebSocket.CLOSING) {
-      console.error("WebSocket is closed/closing, cannot initialize WebRTC")
-      return
-    }
-    
-    if (websocket.readyState !== WebSocket.OPEN) {
-      // Max 10 retries
-      if (retryCount >= 10) {
-        console.error("WebSocket connection timeout after 10 retries")
-        return
+    if (!websocket || websocket.readyState !== WebSocket.OPEN) {
+      if (retryCount < 10) {
+        setTimeout(() => initWebRTC(websocket, retryCount + 1), 500)
       }
-      console.log("WebSocket not ready yet, waiting... (attempt", retryCount + 1, ")")
-      setTimeout(() => initWebRTC(websocket, retryCount + 1), 500)
       return
     }
 
-    console.log("🎥 Initializing WebRTC with ready WebSocket...")
-    
     try {
       const pc = new RTCPeerConnection({
-        iceServers: [
-          { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:stun1.l.google.com:19302' }
-        ]
+        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
       })
 
-      // Create a data channel from client side - this triggers proper SDP negotiation
-      // We create 'control' channel for sending mouse/keyboard input
       const controlChannel = pc.createDataChannel('control', { ordered: true })
-      controlChannel.onopen = () => {
-        console.log("🎮 Control channel opened")
-        controlChannelRef.current = controlChannel
-      }
-      
-      // We'll also receive 'screen' data channel from agent
-      console.log("📺 Created control channel, waiting for screen channel from agent...")
+      controlChannel.onopen = () => { controlChannelRef.current = controlChannel }
 
-      // Handle ICE candidates
       pc.onicecandidate = (event) => {
         if (event.candidate && websocket.readyState === WebSocket.OPEN) {
-          console.log("📡 Sending ICE candidate")
           websocket.send(JSON.stringify({
-            type: 'webrtc_signal',
-            device_id: deviceId,
-            data: {
-              type: 'ice_candidate',
-              candidate: event.candidate
-            }
+            type: 'webrtc_signal', device_id: deviceId,
+            data: { type: 'ice_candidate', candidate: event.candidate }
           }))
         }
       }
 
-      // Handle incoming data channel from agent
       pc.ondatachannel = (event) => {
-        console.log("🎬 Received data channel:", event.channel.label)
         const channel = event.channel
-        
-        channel.onopen = () => {
-          console.log("📺 Data channel opened!")
-          setWebrtcConnected(true)
-        }
-        
-        channel.onclose = () => {
-          console.log("📺 Data channel closed")
-          setWebrtcConnected(false)
-        }
-        
-        // Set binary type to arraybuffer for better performance
+        channel.onopen = () => setWebrtcConnected(true)
+        channel.onclose = () => setWebrtcConnected(false)
         channel.binaryType = 'arraybuffer'
-        
         channel.onmessage = (msgEvent) => {
           try {
-            // Data comes as ArrayBuffer - decode to string
-            let data: string
-            if (msgEvent.data instanceof ArrayBuffer) {
-              data = new TextDecoder().decode(msgEvent.data)
-            } else if (typeof msgEvent.data === 'string') {
-              data = msgEvent.data
-            } else {
-              console.warn("Unknown data type:", typeof msgEvent.data)
-              return
-            }
-            
+            let data = msgEvent.data instanceof ArrayBuffer 
+              ? new TextDecoder().decode(msgEvent.data) 
+              : msgEvent.data
             const frame = JSON.parse(data)
             if (frame.type === 'frame' && frame.image) {
-              // Display the JPEG frame
               setScreenImage(`data:image/jpeg;base64,${frame.image}`)
               if (frame.width && frame.height) {
                 setScreenDimensions({ width: frame.width, height: frame.height })
               }
             }
-          } catch (e) {
-            // Silently ignore parse errors (can happen during connection)
-          }
+          } catch (e) {}
         }
       }
 
-      // Handle connection state
       pc.onconnectionstatechange = () => {
-        console.log("WebRTC Connection state:", pc.connectionState)
-        if (pc.connectionState === 'connected') {
-          setWebrtcConnected(true)
-        } else if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
-          setWebrtcConnected(false)
-          console.warn("WebRTC connection failed/disconnected")
-          // Don't auto-switch to JPEG - let user manually switch if needed
-        }
+        if (pc.connectionState === 'connected') setWebrtcConnected(true)
+        else if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') setWebrtcConnected(false)
       }
 
-      // No automatic timeout fallback - let WebRTC connect or fail cleanly
-
-      // Create offer and wait for ICE gathering to complete
       const offer = await pc.createOffer()
       await pc.setLocalDescription(offer)
 
-      // Wait for ICE gathering to complete (or timeout after 3 seconds)
       await new Promise<void>((resolve) => {
-        if (pc.iceGatheringState === 'complete') {
-          resolve()
-          return
-        }
-        
-        const timeout = setTimeout(() => {
-          console.log("ICE gathering timeout, sending offer anyway")
-          resolve()
-        }, 3000)
-        
+        if (pc.iceGatheringState === 'complete') { resolve(); return }
+        const timeout = setTimeout(resolve, 3000)
         pc.onicegatheringstatechange = () => {
-          console.log("ICE gathering state:", pc.iceGatheringState)
-          if (pc.iceGatheringState === 'complete') {
-            clearTimeout(timeout)
-            resolve()
-          }
+          if (pc.iceGatheringState === 'complete') { clearTimeout(timeout); resolve() }
         }
       })
 
-      // Get the final SDP with ICE candidates
-      const finalSDP = pc.localDescription?.sdp
-      
-      if (!finalSDP) {
-        console.error("No SDP available after ICE gathering")
-        return
-      }
-
-      console.log("📤 Sending WebRTC offer to device:", deviceId, "SDP length:", finalSDP.length)
       websocket.send(JSON.stringify({
-        type: 'webrtc_signal',
-        device_id: deviceId,
-        data: {
-          type: 'offer',
-          sdp: finalSDP
-        }
+        type: 'webrtc_signal', device_id: deviceId,
+        data: { type: 'offer', sdp: pc.localDescription?.sdp }
       }))
 
       setPeerConnection(pc)
-      peerConnectionRef.current = pc // Store in ref for callbacks
+      peerConnectionRef.current = pc
     } catch (error) {
-      console.error("WebRTC initialization failed:", error)
-      // Don't auto-switch - just log the error
-    }
-  }
-
-  // Helper function to start JPEG streaming
-  const startJpegStreaming = (websocket: WebSocket) => {
-    if (websocket.readyState === WebSocket.OPEN) {
-      console.log("📷 Starting JPEG streaming fallback...")
-      websocket.send(JSON.stringify({
-        type: "screen_capture",
-        device_id: deviceId,
-        data: {
-          action: "start",
-          quality: quality,
-          show_cursor: showCursor
-        }
-      }))
+      console.error("WebRTC failed:", error)
     }
   }
 
@@ -322,25 +193,13 @@ export function ScreenViewer({ deviceId, deviceName }: ScreenViewerProps) {
     const websocket = new WebSocket(API_ENDPOINTS.ws)
     
     websocket.onopen = () => {
-      console.log("🖥️ Screen viewer WebSocket connected")
       setWs(websocket)
-      
-      // Wait a bit for WebSocket to be fully ready, then try WebRTC
       if (useWebRTC) {
-        setTimeout(() => {
-          console.log("🎥 Starting WebRTC initialization...")
-          initWebRTC(websocket) // Pass websocket directly!
-        }, 500)
+        setTimeout(() => initWebRTC(websocket), 500)
       } else {
-        // Use JPEG fallback
         websocket.send(JSON.stringify({
-          type: "screen_capture",
-          device_id: deviceId,
-          data: {
-            action: "start",
-            quality: quality,
-            show_cursor: showCursor
-          }
+          type: "screen_capture", device_id: deviceId,
+          data: { action: "start", quality, show_cursor: showCursor }
         }))
       }
     }
@@ -348,348 +207,231 @@ export function ScreenViewer({ deviceId, deviceName }: ScreenViewerProps) {
     websocket.onmessage = (event) => {
       const message = JSON.parse(event.data)
       
-      // Debug: Log all WebRTC related messages
-      if (message.type?.includes('webrtc') || message.type?.includes('ice')) {
-        console.log("🔍 WebRTC message received:", message.type, "device:", message.device_id)
-      }
-      
-      // Handle WebRTC signaling
       if ((message.type === "webrtc_answer" || message.type === "webrtc_offer_response") && message.device_id === deviceId) {
-        console.log("📥 Received WebRTC answer:", message.type, "has data:", !!message.data, "has sdp:", !!message.data?.sdp)
         const pc = peerConnectionRef.current
-        console.log("📥 PeerConnection state:", pc?.signalingState)
-        if (pc && message.data && message.data.sdp) {
-          console.log("📥 Setting remote description with SDP length:", message.data.sdp.length)
-          pc.setRemoteDescription(new RTCSessionDescription({
-            type: 'answer',
-            sdp: message.data.sdp
-          })).then(() => {
-            console.log("✅ Remote description set successfully!")
-          }).catch((err: any) => {
-            console.error("❌ Failed to set remote description:", err)
-          })
-        } else {
-          console.warn("⚠️ Cannot set remote description - peerConnection:", !!pc, "data:", !!message.data, "sdp:", !!message.data?.sdp)
+        if (pc && message.data?.sdp) {
+          pc.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: message.data.sdp }))
         }
       }
       
       if (message.type === "webrtc_ice" && message.device_id === deviceId) {
-        console.log("📡 Received ICE candidate")
-        if (peerConnection && message.data && message.data.candidate) {
+        if (peerConnection && message.data?.candidate) {
           peerConnection.addIceCandidate(new RTCIceCandidate(message.data.candidate))
         }
       }
       
-      // Handle JPEG fallback - accept images when WebRTC is not connected
       if ((message.type === "screen_capture" || message.type === "screen_frame") && message.device_id === deviceId) {
-        if (message.data && message.data.image && !webrtcConnected) {
+        if (message.data?.image && !webrtcConnected) {
           setScreenImage(`data:image/jpeg;base64,${message.data.image}`)
           if (message.data.width && message.data.height) {
             setScreenDimensions({ width: message.data.width, height: message.data.height })
           }
-          if (message.data.cursor_x !== undefined && message.data.cursor_y !== undefined) {
-            setCursorPos({ x: message.data.cursor_x, y: message.data.cursor_y })
-          }
-          if (message.data.network_status) {
-            setNetworkStatus(message.data.network_status)
-          }
-        }
-      }
-      
-      // Network status updates
-      if (message.type === "network_status" && message.device_id === deviceId) {
-        const qual = message.data?.quality || 'good'
-        setNetworkStatus(qual)
-        if (qual === 'slow') {
-          setShowSlowNetworkBanner(true)
+          if (message.data.network_status) setNetworkStatus(message.data.network_status)
         }
       }
     }
 
-    websocket.onerror = (error) => {
-      console.error("Screen WebSocket error:", error)
-      setIsStreaming(false)
-    }
+    websocket.onerror = () => setIsStreaming(false)
 
-    // JPEG streaming interval (only if not using WebRTC)
     let streamInterval: NodeJS.Timeout | null = null
     if (!useWebRTC) {
-      const interval = Math.round(1000 / fps)
       streamInterval = setInterval(() => {
         if (websocket.readyState === WebSocket.OPEN) {
           websocket.send(JSON.stringify({
-            type: "screen_capture",
-            device_id: deviceId,
-            data: {
-              action: "capture",
-              quality: quality,
-              show_cursor: showCursor
-            }
+            type: "screen_capture", device_id: deviceId,
+            data: { action: "capture", quality, show_cursor: showCursor }
           }))
         }
-      }, interval)
+      }, Math.round(1000 / fps))
     }
 
     return () => {
       if (streamInterval) clearInterval(streamInterval)
       if (websocket.readyState === WebSocket.OPEN) {
-        websocket.send(JSON.stringify({
-          type: "screen_capture",
-          device_id: deviceId,
-          data: { action: "stop" }
-        }))
+        websocket.send(JSON.stringify({ type: "screen_capture", device_id: deviceId, data: { action: "stop" } }))
       }
       websocket.close()
-      if (peerConnection) {
-        peerConnection.close()
-      }
+      peerConnection?.close()
     }
   }, [isStreaming, useWebRTC, fps, quality, showCursor])
 
-  const handleStartStream = () => {
-    setIsStreaming(true)
-  }
-
+  const handleStartStream = () => setIsStreaming(true)
   const handleStopStream = () => {
     setIsStreaming(false)
     setScreenImage(null)
-    setCursorPos(null)
     setScreenDimensions(null)
     setNetworkStatus('good')
-    setShowSlowNetworkBanner(false)
-    setVoiceEnabled(false)
     setWebrtcConnected(false)
-    if (peerConnection) {
-      peerConnection.close()
-      setPeerConnection(null)
+    peerConnection?.close()
+    setPeerConnection(null)
+  }
+
+  // Use browser fullscreen API
+  const toggleFullscreen = () => {
+    if (!isFullscreen && containerRef.current) {
+      if (containerRef.current.requestFullscreen) {
+        containerRef.current.requestFullscreen()
+      }
+      setIsFullscreen(true)
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen()
+      }
+      setIsFullscreen(false)
     }
   }
 
-  const toggleFullscreen = () => {
-    setIsFullscreen(!isFullscreen)
-  }
-
-  const qualityPresets = [
-    { label: "Low (Fast)", value: 30, description: "30% quality" },
-    { label: "Medium", value: 50, description: "50% quality" },
-    { label: "High", value: 70, description: "70% quality" },
-    { label: "Ultra", value: 90, description: "90% quality" },
-  ]
-
-  const fpsPresets = [
-    { label: "10 FPS", value: 10, description: "Low bandwidth" },
-    { label: "15 FPS", value: 15, description: "Balanced" },
-    { label: "20 FPS", value: 20, description: "Smooth" },
-    { label: "30 FPS", value: 30, description: "Maximum" },
-  ]
+  // Listen for fullscreen changes
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement)
+    }
+    document.addEventListener('fullscreenchange', handleFullscreenChange)
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange)
+  }, [])
 
   return (
-    <Card className="border-slate-800 bg-slate-900/50">
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-white flex items-center gap-2">
-            <Monitor className="h-5 w-5" />
-            Remote Screen {useWebRTC && webrtcConnected && <Badge variant="outline" className="ml-2 border-green-500 bg-green-500/10 text-green-400"><Video className="h-3 w-3 mr-1" />WebRTC</Badge>}
-          </CardTitle>
-          <div className="flex items-center gap-2">
-            {isStreaming && (
-              <Badge variant="outline" className="border-green-500/30 bg-green-500/10 text-green-400">
-                <span className="mr-1 h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-                Live ({fps} FPS)
-              </Badge>
-            )}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="border-slate-700 bg-slate-800 text-white hover:bg-slate-700"
-                >
-                  <Settings className="mr-2 h-4 w-4" />
-                  Settings
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-64 border-slate-700 bg-slate-800">
-                <DropdownMenuLabel className="text-slate-300">Stream Mode</DropdownMenuLabel>
-                <DropdownMenuItem
-                  className={`text-slate-200 hover:bg-slate-700 ${useWebRTC ? 'bg-slate-700' : ''}`}
-                  onClick={() => setUseWebRTC(true)}
-                >
-                  <div className="flex justify-between w-full">
-                    <span>WebRTC (Recommended)</span>
-                    <span className="text-slate-400 text-xs">Low latency</span>
-                  </div>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  className={`text-slate-200 hover:bg-slate-700 ${!useWebRTC ? 'bg-slate-700' : ''}`}
-                  onClick={() => setUseWebRTC(false)}
-                >
-                  <div className="flex justify-between w-full">
-                    <span>JPEG Fallback</span>
-                    <span className="text-slate-400 text-xs">Compatible</span>
-                  </div>
-                </DropdownMenuItem>
-                {!useWebRTC && (
-                  <>
-                    <DropdownMenuSeparator className="bg-slate-700" />
-                    <DropdownMenuLabel className="text-slate-300">Quality</DropdownMenuLabel>
-                    {qualityPresets.map((preset) => (
-                      <DropdownMenuItem
-                        key={preset.value}
-                        className={`text-slate-200 hover:bg-slate-700 ${quality === preset.value ? 'bg-slate-700' : ''}`}
-                        onClick={() => setQuality(preset.value)}
-                      >
-                        <div className="flex justify-between w-full">
-                          <span>{preset.label}</span>
-                          <span className="text-slate-400 text-xs">{preset.description}</span>
-                        </div>
-                      </DropdownMenuItem>
-                    ))}
-                    <DropdownMenuSeparator className="bg-slate-700" />
-                    <DropdownMenuLabel className="text-slate-300">Frame Rate</DropdownMenuLabel>
-                    {fpsPresets.map((preset) => (
-                      <DropdownMenuItem
-                        key={preset.value}
-                        className={`text-slate-200 hover:bg-slate-700 ${fps === preset.value ? 'bg-slate-700' : ''}`}
-                        onClick={() => setFps(preset.value)}
-                      >
-                        <div className="flex justify-between w-full">
-                          <span>{preset.label}</span>
-                          <span className="text-slate-400 text-xs">{preset.description}</span>
-                        </div>
-                      </DropdownMenuItem>
-                    ))}
-                  </>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <Badge
-              variant="outline"
-              className={`${networkStatus === 'good'
-                  ? 'border-green-500/30 bg-green-500/10 text-green-400'
-                  : networkStatus === 'medium'
-                  ? 'border-yellow-500/30 bg-yellow-500/10 text-yellow-400'
-                  : 'border-red-500/30 bg-red-500/10 text-red-400'
-                }`}
-            >
-              {networkStatus === 'good' ? <Wifi className="mr-1 h-3 w-3" /> : <WifiOff className="mr-1 h-3 w-3" />}
-              {networkStatus === 'good' ? 'Good' : networkStatus === 'medium' ? 'Medium' : 'Slow'}
-            </Badge>
-            <Button
-              variant="outline"
-              size="sm"
-              className="border-slate-700 bg-slate-800 text-white hover:bg-slate-700"
-              onClick={() => setControlEnabled(!controlEnabled)}
-            >
-              <MousePointer className="mr-2 h-4 w-4" />
-              {controlEnabled ? "Disable" : "Enable"} Control
-            </Button>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div
-          ref={containerRef}
-          className={`w-full overflow-hidden rounded-lg bg-slate-950 border border-slate-800 ${isFullscreen ? 'fixed inset-0 z-50 rounded-none border-none' : 'aspect-video'}`}
-        >
-          {!isStreaming ? (
-            <div className="flex h-full flex-col items-center justify-center gap-4">
-              <Monitor className="h-16 w-16 text-slate-600" />
-              <div className="text-center">
-                <h3 className="mb-2 text-lg font-semibold text-slate-300">Screen View</h3>
-                <p className="mb-4 text-sm text-slate-500">
-                  {useWebRTC ? 'Start streaming with WebRTC for best quality' : 'Start streaming with JPEG fallback'}
-                </p>
-                <Button onClick={handleStartStream} className="bg-blue-600 hover:bg-blue-700">
-                  <Monitor className="mr-2 h-4 w-4" />
-                  Start Screen Stream
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div className="relative h-full w-full bg-slate-950">
-              {showSlowNetworkBanner && !useWebRTC && (
-                <div className="absolute top-0 left-0 right-0 z-20 bg-amber-500/95 text-white px-4 py-2 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <AlertTriangle className="h-4 w-4" />
-                    <span className="font-medium">Slow network detected</span>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-white hover:bg-amber-600"
-                    onClick={() => setShowSlowNetworkBanner(false)}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-              )}
-              
-              {/* Screen Image - works for both WebRTC data channel and JPEG fallback */}
-              {screenImage && (
-                <img
-                  ref={canvasRef}
-                  src={screenImage}
-                  alt="Screen capture"
-                  className="w-full h-full object-contain cursor-crosshair select-none outline-none"
-                  draggable={false}
-                  tabIndex={0}
-                  onClick={handleMouseClick}
-                  onDoubleClick={handleMouseDoubleClick}
-                  onContextMenu={handleContextMenu}
-                  onMouseMove={handleMouseMove}
-                  onWheel={handleWheel}
-                  onKeyDown={handleKeyDown}
-                  onDragStart={(e) => e.preventDefault()}
-                />
-              )}
-              
-              {/* Loading state - show when no screen image yet */}
-              {!screenImage && (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="text-center">
-                    <div className="mb-4 h-24 w-24 mx-auto rounded-full bg-blue-600/10 flex items-center justify-center">
-                      <Monitor className="h-12 w-12 text-blue-500 animate-pulse" />
-                    </div>
-                    <p className="text-slate-400 mb-4">
-                      {useWebRTC ? 'Establishing WebRTC connection...' : 'Connecting to screen stream...'}
-                    </p>
-                  </div>
-                </div>
-              )}
-              
-              {/* Controls overlay */}
-              {(webrtcConnected || screenImage) && (
-                <>
-                  <div className="absolute top-4 left-4 z-10 flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="border-slate-700 bg-slate-900/90 text-white hover:bg-slate-800"
-                      onClick={toggleFullscreen}
-                      title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
-                    >
-                      {isFullscreen ? <Shrink className="mr-1 h-4 w-4" /> : <Expand className="mr-1 h-4 w-4" />}
-                      {isFullscreen ? "Exit" : "Fullscreen"}
-                    </Button>
-                  </div>
-                  
-                  <div className="absolute bottom-4 right-4 flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="border-red-700 bg-red-950/20 text-red-400 hover:bg-red-950/40"
-                      onClick={handleStopStream}
-                    >
-                      Stop Stream
-                    </Button>
-                  </div>
-                </>
-              )}
+    <div ref={containerRef} className={`flex flex-col h-full ${isFullscreen ? 'bg-black' : ''}`}>
+      {/* Compact Toolbar */}
+      <div className={`flex items-center justify-between h-10 px-3 shrink-0 ${isFullscreen ? 'bg-black/80 backdrop-blur-sm absolute top-0 left-0 right-0 z-10' : 'bg-[#111111] border-b border-slate-800'} rounded-t-lg`}>
+        {/* Left - Status */}
+        <div className="flex items-center gap-2">
+          {isStreaming && (
+            <div className="flex items-center gap-1.5 text-xs">
+              <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+              <span className="text-green-400 font-medium">Live</span>
+              {webrtcConnected && <span className="text-slate-500">• WebRTC</span>}
             </div>
           )}
+          {!isStreaming && (
+            <span className="text-xs text-slate-500">Screen Viewer</span>
+          )}
         </div>
-      </CardContent>
-    </Card>
+
+        {/* Center - Nothing */}
+        <div className="flex-1" />
+
+        {/* Right - Controls */}
+        <div className="flex items-center gap-1">
+          {isStreaming ? (
+            <>
+              {/* Control Toggle */}
+              <Button
+                variant="ghost"
+                size="sm"
+                className={`h-7 px-2 text-xs ${controlEnabled ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                onClick={() => setControlEnabled(!controlEnabled)}
+                title={controlEnabled ? "Disable remote control" : "Enable remote control"}
+              >
+                <MousePointer className="h-3 w-3 mr-1" />
+                Control
+              </Button>
+
+              {/* Network Status */}
+              <div className={`flex items-center gap-1 px-2 h-7 rounded text-xs ${
+                networkStatus === 'good' ? 'text-green-400' : networkStatus === 'medium' ? 'text-yellow-400' : 'text-red-400'
+              }`}>
+                {networkStatus === 'good' ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
+              </div>
+
+              {/* Fullscreen */}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 w-7 p-0 text-slate-400 hover:text-white"
+                onClick={toggleFullscreen}
+                title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+              >
+                {isFullscreen ? <Shrink className="h-3.5 w-3.5" /> : <Expand className="h-3.5 w-3.5" />}
+              </Button>
+
+              {/* Settings Dropdown */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-slate-400 hover:text-white">
+                    <MoreVertical className="h-3.5 w-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-40 border-slate-700 bg-slate-800">
+                  <DropdownMenuItem
+                    className={`text-xs ${useWebRTC ? 'text-blue-400' : 'text-slate-300'}`}
+                    onClick={() => setUseWebRTC(true)}
+                  >
+                    WebRTC Mode
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className={`text-xs ${!useWebRTC ? 'text-blue-400' : 'text-slate-300'}`}
+                    onClick={() => setUseWebRTC(false)}
+                  >
+                    JPEG Mode
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* Stop Button */}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                onClick={handleStopStream}
+              >
+                <Square className="h-3 w-3 mr-1 fill-current" />
+                Stop
+              </Button>
+            </>
+          ) : (
+            <Button
+              size="sm"
+              className="h-7 px-3 text-xs bg-blue-600 hover:bg-blue-700"
+              onClick={handleStartStream}
+            >
+              <Play className="h-3 w-3 mr-1 fill-current" />
+              Start Stream
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Screen Container - fills available space */}
+      <div className={`flex-1 bg-[#0a0a0a] ${isFullscreen ? '' : 'rounded-b-lg'} overflow-hidden flex items-center justify-center`}>
+        {!isStreaming ? (
+          <div className="flex flex-col items-center justify-center gap-4 text-center">
+            <div className="h-20 w-20 rounded-2xl bg-slate-800/50 flex items-center justify-center">
+              <Monitor className="h-10 w-10 text-slate-600" />
+            </div>
+            <div>
+              <p className="text-sm text-slate-400 mb-1">Remote Screen</p>
+              <p className="text-xs text-slate-600">Click Start to begin streaming</p>
+            </div>
+          </div>
+        ) : screenImage ? (
+          <img
+            ref={canvasRef}
+            src={screenImage}
+            alt="Remote screen"
+            className="w-full h-full object-contain select-none outline-none"
+            style={{ cursor: controlEnabled ? 'crosshair' : 'default' }}
+            draggable={false}
+            tabIndex={0}
+            onClick={handleMouseClick}
+            onDoubleClick={handleMouseDoubleClick}
+            onContextMenu={handleContextMenu}
+            onMouseMove={handleMouseMove}
+            onWheel={handleWheel}
+            onKeyDown={handleKeyDown}
+            onDragStart={(e) => e.preventDefault()}
+          />
+        ) : (
+          <div className="flex flex-col items-center justify-center gap-3">
+            <div className="h-16 w-16 rounded-full bg-blue-500/10 flex items-center justify-center">
+              <Monitor className="h-8 w-8 text-blue-400 animate-pulse" />
+            </div>
+            <p className="text-sm text-slate-400">
+              {useWebRTC ? 'Connecting via WebRTC...' : 'Connecting...'}
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
   )
 }

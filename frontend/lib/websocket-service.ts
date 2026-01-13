@@ -35,7 +35,7 @@ class WebSocketService {
         try {
           const message = JSON.parse(event.data)
           console.log('📨 WebSocket message:', message.type, 'device:', message.device_id)
-          
+
           // Notify all handlers
           this.handlers.forEach(handler => {
             try {
@@ -58,7 +58,7 @@ class WebSocketService {
         console.log('🔌 WebSocket disconnected, reconnecting in 3s...')
         this.isConnecting = false
         this.ws = null
-        
+
         // Auto-reconnect
         this.reconnectTimeout = setTimeout(() => {
           this.connect()
@@ -75,12 +75,12 @@ class WebSocketService {
       clearTimeout(this.reconnectTimeout)
       this.reconnectTimeout = null
     }
-    
+
     if (this.ws) {
       this.ws.close()
       this.ws = null
     }
-    
+
     this.handlers.clear()
   }
 
@@ -97,12 +97,12 @@ class WebSocketService {
 
   addMessageHandler(handler: MessageHandler) {
     this.handlers.add(handler)
-    
+
     // Connect if not already connected
     if (!this.ws) {
       this.connect()
     }
-    
+
     // Return cleanup function
     return () => {
       this.handlers.delete(handler)

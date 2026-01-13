@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -304,80 +303,79 @@ export function TaskManager({ deviceId, userId }: TaskManagerProps) {
 
   return (
     <>
-      <Card className={`border-slate-800 bg-slate-900/50 ${isFullScreen ? 'fixed inset-0 z-50 rounded-none overflow-auto' : isMaximized ? 'fixed inset-4 z-50 overflow-auto' : ''}`}>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-white flex items-center gap-2">
-              <Activity className="h-5 w-5" />
-              Task Manager
-              <Badge variant="outline" className="ml-2 border-slate-700 text-slate-400">
-                {processes.length} processes
-              </Badge>
-            </CardTitle>
-            <div className="flex items-center gap-2">
-              {/* Stats */}
-              <div className="flex items-center gap-4 mr-4 text-sm">
-                <div className="flex items-center gap-1 text-slate-400">
-                  <Cpu className="h-4 w-4" />
-                  <span>{totalCPU.toFixed(1)}%</span>
-                </div>
-                <div className="flex items-center gap-1 text-slate-400">
-                  <MemoryStick className="h-4 w-4" />
-                  <span>{formatMemory(totalMemory)}</span>
-                </div>
-              </div>
-
-              <Button
-                variant="outline"
-                size="sm"
-                className={`border-slate-700 text-white hover:bg-slate-700 ${autoRefresh ? 'bg-green-600 border-green-600' : 'bg-slate-800'}`}
-                onClick={() => setAutoRefresh(!autoRefresh)}
-                title={autoRefresh ? "Stop Auto Refresh" : "Auto Refresh (5s)"}
-              >
-                <RefreshCw className={`h-4 w-4 ${autoRefresh ? 'animate-spin' : ''}`} />
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="border-slate-700 bg-slate-800 text-white hover:bg-slate-700"
-                onClick={loadProcesses}
-                disabled={isLoading}
-              >
-                <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="border-slate-700 bg-slate-800 text-white hover:bg-slate-700"
-                onClick={() => { setIsMaximized(!isMaximized); if (isFullScreen) setIsFullScreen(false); }}
-              >
-                {isMaximized ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className={`border-slate-700 text-white hover:bg-slate-700 ${isFullScreen ? 'bg-blue-600 border-blue-600' : 'bg-slate-800'}`}
-                onClick={() => { setIsFullScreen(!isFullScreen); if (isMaximized) setIsMaximized(false); }}
-              >
-                <Expand className="h-4 w-4" />
-              </Button>
+      <div className="flex flex-col h-full">
+        {/* Compact Toolbar */}
+        <div className="flex items-center h-10 px-3 shrink-0 bg-[#111] rounded-t-lg border-b border-slate-800">
+          {/* Left - Title & Stats */}
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
+              <Activity className="h-3.5 w-3.5 text-purple-400" />
+              <span className="text-white font-medium">Processes</span>
+              <span className="text-slate-500 ml-1">{processes.length}</span>
+            </div>
+            <div className="hidden sm:flex items-center gap-3 text-[10px] text-slate-500">
+              <span>|</span>
+              <span className="flex items-center gap-1">
+                <Cpu className="h-3 w-3" />
+                {totalCPU.toFixed(1)}%
+              </span>
+              <span className="flex items-center gap-1">
+                <MemoryStick className="h-3 w-3" />
+                {formatMemory(totalMemory)}
+              </span>
             </div>
           </div>
-        </CardHeader>
-        <CardContent>
-          {/* Search */}
-          <div className="mb-4 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-500" />
+          
+          <div className="flex-1" />
+          
+          {/* Actions */}
+          <div className="flex items-center gap-0.5">
+            <Button
+              variant="ghost"
+              size="sm"
+              className={`h-7 w-7 p-0 hover:bg-white/10 ${autoRefresh ? 'text-green-400' : 'text-slate-400 hover:text-white'}`}
+              onClick={() => setAutoRefresh(!autoRefresh)}
+              title={autoRefresh ? "Stop auto-refresh" : "Auto-refresh (5s)"}
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${autoRefresh ? 'animate-spin' : ''}`} />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 w-7 p-0 text-slate-400 hover:text-white hover:bg-white/10"
+              onClick={loadProcesses}
+              disabled={isLoading}
+              title="Refresh"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className={`h-7 w-7 p-0 hover:bg-white/10 ${isFullScreen ? 'text-blue-400' : 'text-slate-400 hover:text-white'}`}
+              onClick={() => { setIsFullScreen(!isFullScreen); if (isMaximized) setIsMaximized(false); }}
+              title={isFullScreen ? "Exit fullscreen" : "Fullscreen"}
+            >
+              <Expand className="w-3.5 h-3.5" />
+            </Button>
+          </div>
+        </div>
+
+        {/* Search bar */}
+        <div className="px-3 py-2 bg-[#0a0a0a] border-b border-slate-800">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500" />
             <Input
-              placeholder="Search processes by name, PID, or user..."
+              placeholder="Search by name, PID, or user..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 bg-slate-950 border-slate-700 text-white"
+              className="h-8 text-xs pl-8 bg-slate-800/50 border-slate-700 text-white"
             />
           </div>
+        </div>
 
-          {/* Process Table */}
-          <div className={`overflow-auto border border-slate-800 rounded-lg ${isFullScreen ? 'max-h-[calc(100vh-200px)]' : isMaximized ? 'max-h-[calc(100vh-260px)]' : 'max-h-[500px]'}`}>
+        {/* Process Table */}
+        <div className="flex-1 min-h-0 overflow-auto bg-[#0a0a0a] rounded-b-lg">
             <Table>
               <TableHeader className="sticky top-0 bg-slate-900 z-10">
                 <TableRow className="border-slate-800 hover:bg-transparent">
@@ -523,8 +521,7 @@ export function TaskManager({ deviceId, userId }: TaskManagerProps) {
               </TableBody>
             </Table>
           </div>
-        </CardContent>
-      </Card>
+        </div>
 
       {/* Process Details Dialog */}
       <Dialog open={detailsDialogOpen} onOpenChange={setDetailsDialogOpen}>

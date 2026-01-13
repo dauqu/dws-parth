@@ -1,3 +1,6 @@
+//go:build windows
+// +build windows
+
 package main
 
 import (
@@ -45,10 +48,10 @@ func InitShellSession(sessionID, shellType string) {
 	session := &ShellSession{
 		Type:       shellType,
 		WorkingDir: homeDir,
-		useConPTY:  IsConPTYAvailable(), // Check if ConPTY is available
+		useConPTY:  false, // Disabled - ConPTY has blocking read issues; exec.Command is more reliable
 	}
 
-	log.Printf("Initializing shell session %s with type %s, ConPTY available: %v", sessionID, shellType, session.useConPTY)
+	log.Printf("Initializing shell session %s with type %s, ConPTY available: %v (disabled)", sessionID, shellType, IsConPTYAvailable())
 
 	shellSessions[sessionID] = session
 }

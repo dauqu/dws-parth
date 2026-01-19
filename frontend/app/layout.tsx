@@ -11,7 +11,7 @@ const _geistMono = Geist_Mono({ subsets: ["latin"] })
 export const metadata: Metadata = {
   title: "Device Dashboard - Windows Remote Management",
   description: "Professional Windows device management and remote control system",
-  generator: "v0.app",
+  generator: "daucu.app",
   icons: {
     icon: [
       {

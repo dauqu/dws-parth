@@ -5,7 +5,7 @@ import { wsService } from '../websocket-service'
 
 // TODO: Replace with your actual WebSocket endpoint or import from config
 const API_ENDPOINTS = {
-  ws: "ws://localhost:8080/ws"
+  ws: "wss://dws-parth.daucu.com/ws"
 }
 
 export interface SystemInfo {

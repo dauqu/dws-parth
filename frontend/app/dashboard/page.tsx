@@ -308,10 +308,10 @@ export default function DashboardPage() {
             </Button>
 
             {/* Divider */}
-            <div className="h-px bg-slate-800 my-2" />
+            {!showBin && <div className="h-px bg-slate-800 my-2" />}
 
             {/* Groups Header */}
-            {!isSidebarCollapsed && (
+            {!isSidebarCollapsed && !showBin && (
               <div className="flex items-center justify-between px-2 mb-1">
                 <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Groups</span>
                 <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
@@ -362,7 +362,7 @@ export default function DashboardPage() {
             )}
 
             {/* Group List */}
-            <div className="space-y-1">
+            {!showBin && <div className="space-y-1">
               {groups.map((group) => (
                 <div
                   key={group.id}
@@ -404,10 +404,10 @@ export default function DashboardPage() {
                   )}
                 </div>
               ))}
-            </div>
+            </div>}
 
             {/* Create Group Button (when collapsed) */}
-            {isSidebarCollapsed && (
+            {isSidebarCollapsed && !showBin && (
               <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
                 <DialogTrigger asChild>
                   <Button

@@ -50,13 +50,38 @@ export async function updateDeviceLabel(
   id: string,
   label: string
 ): Promise<void> {
-  // Labels are now stored locally on agents, so we send via WebSocket
-  // This function is kept for compatibility but should use WebSocket
-  throw new Error('Use WebSocket to update device labels - call wsService.send() with update_label command')
+  await fetch(API_ENDPOINTS.device(id) + '/label', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ label }),
+  })
 }
 
 export async function deleteDevice(id: string): Promise<void> {
+  // This now soft deletes (moves to bin)
   await fetch(API_ENDPOINTS.device(id), {
+    method: 'DELETE',
+  })
+}
+
+export async function fetchDeletedDevices(): Promise<Device[]> {
+  const response = await fetch(API_ENDPOINTS.binDevices)
+  if (!response.ok) {
+    throw new Error(`Failed to fetch deleted devices: ${response.status} ${response.statusText}`)
+  }
+  const data = await response.json()
+  const devices = data.data || data
+  return Array.isArray(devices) ? devices : []
+}
+
+export async function restoreDevice(id: string): Promise<void> {
+  await fetch(API_ENDPOINTS.restoreDevice(id), {
+    method: 'POST',
+  })
+}
+
+export async function permanentlyDeleteDevice(id: string): Promise<void> {
+  await fetch(API_ENDPOINTS.permanentlyDeleteDevice(id), {
     method: 'DELETE',
   })
 }

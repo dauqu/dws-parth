@@ -315,16 +315,54 @@ func killAgentProcess() {
 	runCommand("taskkill", "/F", "/IM", EXE_NAME)
 }
 
-func addToStartup(exePath string) error {
-	// Open the Run key in HKEY_CURRENT_USER
-	key, _, err := registry.CreateKey(registry.CURRENT_USER, STARTUP_KEY, registry.SET_VALUE)
-	if err != nil {
-		return err
+func removeOldStartup() {
+	// Remove registry startup entry if exists
+	key, err := registry.OpenKey(registry.CURRENT_USER, STARTUP_KEY, registry.SET_VALUE)
+	if err == nil {
+		key.DeleteValue(STARTUP_NAME)
+		key.Close()
 	}
-	defer key.Close()
+	// Remove old scheduled task if exists
+	runCommand("schtasks", "/Delete", "/TN", STARTUP_NAME, "/F")
+}
 
-	// Set the value to run the agent on startup
-	return key.SetStringValue(STARTUP_NAME, fmt.Sprintf("\"%s\"", exePath))
+func addToStartup(exePath string) error {
+	// Remove any old startup entries first
+	removeOldStartup()
+
+	// Use Task Scheduler for more reliable startup with desktop access
+	// Create a scheduled task that runs at user logon with a delay
+	// The delay ensures the desktop is fully ready
+
+	// Get current username
+	username := os.Getenv("USERNAME")
+	if username == "" {
+		username = os.Getenv("USER")
+	}
+
+	// Create scheduled task using schtasks command
+	// /SC ONLOGON - Run when user logs on
+	// /DELAY 0000:30 - Wait 30 seconds after logon (ensures desktop is ready)
+	// /RL HIGHEST - Run with highest privileges
+	err := runCommand("schtasks", "/Create",
+		"/TN", STARTUP_NAME,
+		"/TR", fmt.Sprintf("\"%s\"", exePath),
+		"/SC", "ONLOGON",
+		"/DELAY", "0000:30",
+		"/RL", "HIGHEST",
+		"/F") // Force overwrite if exists
+
+	if err != nil {
+		// Fallback to registry startup if schtasks fails
+		key, _, err := registry.CreateKey(registry.CURRENT_USER, STARTUP_KEY, registry.SET_VALUE)
+		if err != nil {
+			return err
+		}
+		defer key.Close()
+		return key.SetStringValue(STARTUP_NAME, fmt.Sprintf("\"%s\"", exePath))
+	}
+
+	return nil
 }
 
 func startAgent(exePath string) error {

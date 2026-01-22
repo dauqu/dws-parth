@@ -18,8 +18,10 @@ type Device struct {
 	LastSeen         time.Time          `bson:"last_seen" json:"last_seen"`
 	WindowsUsername  string             `bson:"windows_username" json:"windows_username"`
 	WallpaperURL     string             `bson:"wallpaper_url" json:"wallpaper_url"`
-	Label            string             `bson:"-" json:"label"`               // Label stored locally on agent, not in MongoDB
-	GroupName        string             `bson:"group_name" json:"group_name"` // Group name for organization
+	Label            string             `bson:"label" json:"label"`                               // Label stored in database
+	GroupName        string             `bson:"group_name" json:"group_name"`                     // Group name for organization
+	IsDeleted        bool               `bson:"is_deleted" json:"is_deleted"`                     // Soft delete flag for bin
+	DeletedAt        *time.Time         `bson:"deleted_at,omitempty" json:"deleted_at,omitempty"` // When device was moved to bin
 	CreatedAt        time.Time          `bson:"created_at" json:"created_at"`
 	UpdatedAt        time.Time          `bson:"updated_at" json:"updated_at"`
 }

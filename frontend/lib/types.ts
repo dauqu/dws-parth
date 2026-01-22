@@ -12,6 +12,8 @@ export interface Device {
   wallpaper_url: string
   label: string
   group_name: string
+  is_deleted: boolean
+  deleted_at: string | null
   created_at: string
   updated_at: string
 }

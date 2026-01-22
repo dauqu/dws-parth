@@ -35,6 +35,7 @@ import type { Device, Group } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { wsService } from "@/lib/websocket-service";
+import { updateDeviceLabel } from "@/lib/api-client";
 
 interface DeviceListProps {
   devices: Device[];
@@ -151,7 +152,11 @@ export function DeviceList({
   ) => {
     e.stopPropagation();
     try {
-      const sent = wsService.send({
+      // First, save to database via API
+      await updateDeviceLabel(deviceId, labelValue);
+
+      // Then send to agent via WebSocket
+      wsService.send({
         type: "update_label",
         device_id: deviceId,
         data: {
@@ -159,15 +164,11 @@ export function DeviceList({
         },
       });
 
-      if (!sent) {
-        throw new Error("WebSocket not connected");
-      }
-
       onLabelUpdate?.(deviceId, labelValue);
 
       toast({
         title: "Label Updated",
-        description: `Label for ${deviceName} has been updated.`,
+        description: `Label for ${deviceName} has been saved to database.`,
       });
       setEditingLabel(null);
     } catch (error) {

@@ -48,7 +48,10 @@ func RegisterDevice(name string) (*Device, error) {
 			LastSeen:         time.Now(),
 			WindowsUsername:  username,
 			WallpaperURL:     "/windows-11-gradient-purple.jpg",
+			Label:            "",
 			GroupName:        "",
+			IsDeleted:        false,
+			DeletedAt:        nil,
 			CreatedAt:        time.Now(),
 			UpdatedAt:        time.Now(),
 		}
@@ -86,12 +89,13 @@ func RegisterDevice(name string) (*Device, error) {
 	return &existingDevice, nil
 }
 
-// GetAllDevices retrieves all devices
+// GetAllDevices retrieves all devices (excluding deleted ones)
 func GetAllDevices() ([]Device, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	cursor, err := devicesCollection.Find(ctx, bson.M{})
+	// Only get devices that are not deleted
+	cursor, err := devicesCollection.Find(ctx, bson.M{"is_deleted": bson.M{"$ne": true}})
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch devices: %v", err)
 	}
@@ -145,7 +149,7 @@ func UpdateDeviceStatus(deviceID primitive.ObjectID, status, connectionStatus st
 	return err
 }
 
-// DeleteDevice removes a device from database
+// DeleteDevice soft deletes a device (moves to bin)
 func DeleteDevice(deviceID string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -155,21 +159,43 @@ func DeleteDevice(deviceID string) error {
 		return fmt.Errorf("invalid device ID: %v", err)
 	}
 
-	_, err = devicesCollection.DeleteOne(ctx, bson.M{"_id": objID})
+	now := time.Now()
+	_, err = devicesCollection.UpdateOne(
+		ctx,
+		bson.M{"_id": objID},
+		bson.M{
+			"$set": bson.M{
+				"is_deleted": true,
+				"deleted_at": now,
+				"updated_at": now,
+			},
+		},
+	)
 	return err
 }
 
-// DeleteDeviceByHostname removes a device from database using hostname
+// DeleteDeviceByHostname soft deletes a device using hostname (moves to bin)
 func DeleteDeviceByHostname(hostname string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	result, err := devicesCollection.DeleteOne(ctx, bson.M{"hostname": hostname})
+	now := time.Now()
+	result, err := devicesCollection.UpdateOne(
+		ctx,
+		bson.M{"hostname": hostname},
+		bson.M{
+			"$set": bson.M{
+				"is_deleted": true,
+				"deleted_at": now,
+				"updated_at": now,
+			},
+		},
+	)
 	if err != nil {
 		return err
 	}
 
-	if result.DeletedCount == 0 {
+	if result.MatchedCount == 0 {
 		return fmt.Errorf("device not found: %s", hostname)
 	}
 
@@ -246,6 +272,8 @@ func RegisterDeviceByHostname(hostname, deviceID, ipAddress, osVersion, windowsU
 			WallpaperURL:     wallpaperURL,
 			Label:            label,
 			GroupName:        groupName,
+			IsDeleted:        false,
+			DeletedAt:        nil,
 			CreatedAt:        time.Now(),
 			UpdatedAt:        time.Now(),
 		}
@@ -267,8 +295,23 @@ func RegisterDeviceByHostname(hostname, deviceID, ipAddress, osVersion, windowsU
 	existingDevice.ConnectionStatus = "connected"
 	existingDevice.LastSeen = time.Now()
 	existingDevice.IPAddress = ipAddress
-	existingDevice.Label = label
-	existingDevice.GroupName = groupName
+	existingDevice.OSVersion = osVersion
+	existingDevice.WindowsUsername = windowsUsername
+	existingDevice.WallpaperURL = wallpaperURL
+
+	// Only update label if agent sends a non-empty label
+	// Otherwise keep the existing label from database
+	if label != "" {
+		existingDevice.Label = label
+	}
+
+	// Only update group if agent sends a non-empty group
+	if groupName != "" {
+		existingDevice.GroupName = groupName
+	}
+
+	existingDevice.IsDeleted = false // Restore if it was deleted
+	existingDevice.DeletedAt = nil
 	existingDevice.UpdatedAt = time.Now()
 
 	_, err = devicesCollection.UpdateOne(
@@ -304,6 +347,112 @@ func UpdateDeviceStatusByHostname(hostname, status, connectionStatus string) err
 	)
 
 	return err
+}
+
+// GetDeletedDevices retrieves all devices in the bin (soft deleted)
+func GetDeletedDevices() ([]Device, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Only get devices that are deleted
+	cursor, err := devicesCollection.Find(ctx, bson.M{"is_deleted": true})
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch deleted devices: %v", err)
+	}
+	defer cursor.Close(ctx)
+
+	var devices []Device
+	if err = cursor.All(ctx, &devices); err != nil {
+		return nil, fmt.Errorf("failed to decode deleted devices: %v", err)
+	}
+
+	return devices, nil
+}
+
+// RestoreDevice restores a device from bin
+func RestoreDevice(deviceID string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	objID, err := primitive.ObjectIDFromHex(deviceID)
+	if err != nil {
+		return fmt.Errorf("invalid device ID: %v", err)
+	}
+
+	_, err = devicesCollection.UpdateOne(
+		ctx,
+		bson.M{"_id": objID},
+		bson.M{
+			"$set": bson.M{
+				"is_deleted": false,
+				"updated_at": time.Now(),
+			},
+			"$unset": bson.M{
+				"deleted_at": "",
+			},
+		},
+	)
+	return err
+}
+
+// PermanentlyDeleteDevice permanently removes a device from database
+func PermanentlyDeleteDevice(deviceID string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	objID, err := primitive.ObjectIDFromHex(deviceID)
+	if err != nil {
+		return fmt.Errorf("invalid device ID: %v", err)
+	}
+
+	_, err = devicesCollection.DeleteOne(ctx, bson.M{"_id": objID})
+	return err
+}
+
+// UpdateDeviceLabel updates the label of a device
+func UpdateDeviceLabel(deviceID primitive.ObjectID, label string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	_, err := devicesCollection.UpdateOne(
+		ctx,
+		bson.M{"_id": deviceID},
+		bson.M{
+			"$set": bson.M{
+				"label":      label,
+				"updated_at": time.Now(),
+			},
+		},
+	)
+
+	return err
+}
+
+// UpdateDeviceLabelByHostname updates the label of a device using hostname
+func UpdateDeviceLabelByHostname(hostname, label string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	result, err := devicesCollection.UpdateOne(
+		ctx,
+		bson.M{"hostname": hostname},
+		bson.M{
+			"$set": bson.M{
+				"label":      label,
+				"updated_at": time.Now(),
+			},
+		},
+	)
+
+	if err != nil {
+		return err
+	}
+
+	if result.MatchedCount == 0 {
+		return fmt.Errorf("device not found: %s", hostname)
+	}
+
+	return nil
 }
 
 // Helper function to get local IP

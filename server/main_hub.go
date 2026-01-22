@@ -287,11 +287,26 @@ func (h *Hub) registerClient(deviceID string, conn *websocket.Conn, deviceInfo j
 		}
 
 		// Register or update device in database
-		_, err := RegisterDeviceByHostname(hostname, deviceID, ipAddress, osVersion, windowsUsername, wallpaperURL, label, groupName)
+		savedDevice, err := RegisterDeviceByHostname(hostname, deviceID, ipAddress, osVersion, windowsUsername, wallpaperURL, label, groupName)
 		if err != nil {
 			log.Printf("⚠️  Failed to save device to database: %v", err)
 		} else {
 			log.Printf("✅ Device saved to database: %s", deviceID)
+
+			// Update client's device info with label from database (in case it was different)
+			if savedDevice != nil && savedDevice.Label != "" && savedDevice.Label != label {
+				info["label"] = savedDevice.Label
+				client.DeviceInfo["label"] = savedDevice.Label
+
+				// Send the database label back to the agent
+				conn.WriteJSON(map[string]interface{}{
+					"type": "update_label",
+					"data": map[string]interface{}{
+						"label": savedDevice.Label,
+					},
+				})
+				log.Printf("📝 Sent label from database to agent: %s", savedDevice.Label)
+			}
 		}
 	}
 
@@ -361,6 +376,15 @@ func (h *Hub) updateDeviceLabel(deviceID string, label string) {
 		}
 		client.DeviceInfo["label"] = label
 		log.Printf("📝 Updated label for device %s: %s", deviceID, label)
+
+		// Also update label in database
+		if hostname, ok := client.DeviceInfo["hostname"].(string); ok && hostname != "" {
+			if err := UpdateDeviceLabelByHostname(hostname, label); err != nil {
+				log.Printf("⚠️ Failed to update label in database: %v", err)
+			} else {
+				log.Printf("✅ Label updated in database for device %s", deviceID)
+			}
+		}
 	}
 }
 
@@ -438,8 +462,13 @@ func (h *Hub) getDeviceList() []map[string]interface{} {
 					"wallpaper_url":     dbDevice.WallpaperURL,
 					"label":             dbDevice.Label,
 					"group_name":        dbDevice.GroupName,
+					"is_deleted":        dbDevice.IsDeleted,
+					"deleted_at":        nil,
 					"created_at":        dbDevice.CreatedAt.Format("2006-01-02T15:04:05Z"),
 					"updated_at":        dbDevice.UpdatedAt.Format("2006-01-02T15:04:05Z"),
+				}
+				if dbDevice.DeletedAt != nil {
+					device["deleted_at"] = dbDevice.DeletedAt.Format("2006-01-02T15:04:05Z")
 				}
 				devices = append(devices, device)
 			}
@@ -690,6 +719,12 @@ func main() {
 	router.HandleFunc("/api/devices/{id}", handleGetDevice).Methods("GET", "OPTIONS")
 	router.HandleFunc("/api/devices/{id}", handleDeleteDevice).Methods("DELETE", "OPTIONS")
 	router.HandleFunc("/api/devices/{id}/group", handleUpdateDeviceGroup).Methods("PATCH", "OPTIONS")
+	router.HandleFunc("/api/devices/{id}/label", HandleAPIUpdateDeviceLabel).Methods("PATCH", "OPTIONS")
+
+	// Bin/Trash management endpoints
+	router.HandleFunc("/api/bin/devices", HandleAPIGetDeletedDevices).Methods("GET", "OPTIONS")
+	router.HandleFunc("/api/bin/devices/{id}/restore", HandleAPIRestoreDevice).Methods("POST", "OPTIONS")
+	router.HandleFunc("/api/bin/devices/{id}", HandleAPIPermanentlyDeleteDevice).Methods("DELETE", "OPTIONS")
 
 	// Group management endpoints (from api.go)
 	router.HandleFunc("/api/groups", HandleAPIGetGroups).Methods("GET", "OPTIONS")

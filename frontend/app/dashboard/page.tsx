@@ -165,7 +165,7 @@ export default function DashboardPage() {
     email: "demo@devicedashboard.com",
   }
 
-  // Filter by group and search
+  // Filter by group and search, then sort online devices to top
   const filteredDevices = devices
     .filter(device => selectedGroup ? device.group_name === selectedGroup : true)
     .filter(device => 
@@ -175,6 +175,12 @@ export default function DashboardPage() {
           device.label?.toLowerCase().includes(searchQuery.toLowerCase())
         : true
     )
+    .sort((a, b) => {
+      // Sort by connection status: connected first, then disconnected
+      const aOnline = a.connection_status === 'connected' ? 0 : 1
+      const bOnline = b.connection_status === 'connected' ? 0 : 1
+      return aOnline - bOnline
+    })
 
   const getDeviceCountByGroup = (groupName: string) => {
     return devices.filter((d) => d.group_name === groupName).length

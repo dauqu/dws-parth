@@ -114,6 +114,7 @@ func HandleAPIDeleteDevice(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	deviceID := vars["id"]
 
+	// Soft delete - move to bin
 	err := DeleteDevice(deviceID)
 	if err != nil {
 		http.Error(w, fmt.Sprintf(`{"error": "%s"}`, err.Error()), http.StatusInternalServerError)
@@ -122,7 +123,90 @@ func HandleAPIDeleteDevice(w http.ResponseWriter, r *http.Request) {
 
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"success": true,
-		"message": "Device deleted successfully",
+		"message": "Device moved to bin successfully",
+	})
+}
+
+// HandleAPIGetDeletedDevices retrieves all deleted devices (bin)
+func HandleAPIGetDeletedDevices(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	devices, err := GetDeletedDevices()
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error": "%s"}`, err.Error()), http.StatusInternalServerError)
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"data":    devices,
+	})
+}
+
+// HandleAPIRestoreDevice restores a device from bin
+func HandleAPIRestoreDevice(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	vars := mux.Vars(r)
+	deviceID := vars["id"]
+
+	err := RestoreDevice(deviceID)
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error": "%s"}`, err.Error()), http.StatusInternalServerError)
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"message": "Device restored successfully",
+	})
+}
+
+// HandleAPIPermanentlyDeleteDevice permanently deletes a device
+func HandleAPIPermanentlyDeleteDevice(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	vars := mux.Vars(r)
+	deviceID := vars["id"]
+
+	err := PermanentlyDeleteDevice(deviceID)
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error": "%s"}`, err.Error()), http.StatusInternalServerError)
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"message": "Device permanently deleted",
+	})
+}
+
+// HandleAPIUpdateDeviceLabel updates device label
+func HandleAPIUpdateDeviceLabel(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	vars := mux.Vars(r)
+	hostname := vars["id"]
+
+	var req struct {
+		Label string `json:"label"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, `{"error": "Invalid request body"}`, http.StatusBadRequest)
+		return
+	}
+
+	// Use hostname-based update since device IDs are hostnames
+	err := UpdateDeviceLabelByHostname(hostname, req.Label)
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error": "%s"}`, err.Error()), http.StatusInternalServerError)
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"message": "Device label updated successfully",
 	})
 }
 
@@ -410,6 +494,12 @@ func SetupRESTAPI(router *mux.Router) {
 	router.HandleFunc("/api/devices/{id}", HandleAPIUpdateDevice).Methods("PUT", "OPTIONS")
 	router.HandleFunc("/api/devices/{id}", HandleAPIDeleteDevice).Methods("DELETE", "OPTIONS")
 	router.HandleFunc("/api/devices/{id}/group", HandleAPIUpdateDeviceGroup).Methods("PATCH", "OPTIONS")
+	router.HandleFunc("/api/devices/{id}/label", HandleAPIUpdateDeviceLabel).Methods("PATCH", "OPTIONS")
+
+	// Bin/Trash management endpoints
+	router.HandleFunc("/api/bin/devices", HandleAPIGetDeletedDevices).Methods("GET", "OPTIONS")
+	router.HandleFunc("/api/bin/devices/{id}/restore", HandleAPIRestoreDevice).Methods("POST", "OPTIONS")
+	router.HandleFunc("/api/bin/devices/{id}", HandleAPIPermanentlyDeleteDevice).Methods("DELETE", "OPTIONS")
 
 	// Group management endpoints
 	router.HandleFunc("/api/groups", HandleAPIGetGroups).Methods("GET", "OPTIONS")

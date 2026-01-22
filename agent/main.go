@@ -21,8 +21,8 @@ import (
 )
 
 // Server URL - can be overridden at build time using:
-// go build -ldflags="-X main.SERVER_URL=wss://dws-parth.daucu.com/ws/client"
-var SERVER_URL = "wss://dws-parth.daucu.com/ws/client"
+// go build -ldflags="-X main.SERVER_URL=ws://localhost:8080/ws/client"
+var SERVER_URL = "ws://localhost:8080/ws/client"
 
 // Production mode - set to "true" at build time to disable console logging
 // go build -ldflags="-X main.PRODUCTION=true -H windowsgui"

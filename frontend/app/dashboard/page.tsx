@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { DeviceGrid } from "@/components/device-grid"
 import { DeviceList } from "@/components/device-list"
+import { DeviceBin } from "@/components/device-bin"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -45,6 +46,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null)
+  const [showBin, setShowBin] = useState(false)
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [newGroupName, setNewGroupName] = useState("")
   const [newGroupDescription, setNewGroupDescription] = useState("")
@@ -263,12 +265,15 @@ export default function DashboardPage() {
               variant="ghost"
               className={cn(
                 "w-full justify-start gap-3 h-11 transition-all",
-                selectedGroup === null
+                selectedGroup === null && !showBin
                   ? "bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-lg shadow-blue-500/20"
                   : "text-slate-300 hover:text-white hover:bg-slate-800",
                 isSidebarCollapsed && "justify-center px-0",
               )}
-              onClick={() => setSelectedGroup(null)}
+              onClick={() => {
+                setSelectedGroup(null)
+                setShowBin(false)
+              }}
             >
               <Layers className="h-4 w-4 shrink-0" />
               {!isSidebarCollapsed && (
@@ -281,11 +286,32 @@ export default function DashboardPage() {
               )}
             </Button>
 
+            {/* Bin Tab */}
+            <Button
+              variant="ghost"
+              className={cn(
+                "w-full justify-start gap-3 h-11 transition-all",
+                showBin
+                  ? "bg-gradient-to-r from-red-600 to-red-500 text-white shadow-lg shadow-red-500/20"
+                  : "text-slate-300 hover:text-white hover:bg-slate-800",
+                isSidebarCollapsed && "justify-center px-0",
+              )}
+              onClick={() => {
+                setShowBin(true)
+                setSelectedGroup(null)
+              }}
+            >
+              <Trash2 className="h-4 w-4 shrink-0" />
+              {!isSidebarCollapsed && (
+                <span className="flex-1 text-left">Recycle Bin</span>
+              )}
+            </Button>
+
             {/* Divider */}
-            <div className="h-px bg-slate-800 my-2" />
+            {!showBin && <div className="h-px bg-slate-800 my-2" />}
 
             {/* Groups Header */}
-            {!isSidebarCollapsed && (
+            {!isSidebarCollapsed && !showBin && (
               <div className="flex items-center justify-between px-2 mb-1">
                 <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Groups</span>
                 <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
@@ -336,7 +362,7 @@ export default function DashboardPage() {
             )}
 
             {/* Group List */}
-            <div className="space-y-1">
+            {!showBin && <div className="space-y-1">
               {groups.map((group) => (
                 <div
                   key={group.id}
@@ -378,10 +404,10 @@ export default function DashboardPage() {
                   )}
                 </div>
               ))}
-            </div>
+            </div>}
 
             {/* Create Group Button (when collapsed) */}
-            {isSidebarCollapsed && (
+            {isSidebarCollapsed && !showBin && (
               <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
                 <DialogTrigger asChild>
                   <Button
@@ -464,70 +490,76 @@ export default function DashboardPage() {
 
             {/* Content Area */}
             <div className="h-[calc(100vh-240px)] overflow-y-auto scrollbar-hide">
-              {loading && (
-                <div className="flex items-center justify-center py-20">
-                  <div className="text-center">
-                    <div className="mb-4 inline-block h-12 w-12 animate-spin rounded-full border-4 border-blue-500 border-t-transparent"></div>
-                    <p className="text-slate-400">Loading devices...</p>
-                  </div>
-                </div>
-              )}
-
-              {error && (
-                <Card className="border-red-500/20 bg-red-500/10">
-                  <CardContent className="p-6">
-                    <p className="text-red-400 font-medium">⚠️ {error}</p>
-                    <p className="mt-2 text-sm text-slate-400">
-                      Make sure the backend server is running
-                    </p>
-                    <Button
-                      variant="outline"
-                      onClick={loadDevices}
-                      className="mt-4 border-red-500/30 text-red-400 hover:bg-red-500/10"
-                    >
-                      <RefreshCw className="mr-2 h-4 w-4" />
-                      Retry
-                    </Button>
-                  </CardContent>
-                </Card>
-              )}
-
-              {!loading && !error && filteredDevices.length === 0 && (
-                <Card className="border-slate-700 bg-slate-900/30">
-                  <CardContent className="p-12 text-center">
-                    <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-800 mx-auto mb-4">
-                      <Monitor className="h-8 w-8 text-slate-500" />
+              {showBin ? (
+                <DeviceBin />
+              ) : (
+                <>
+                  {loading && (
+                    <div className="flex items-center justify-center py-20">
+                      <div className="text-center">
+                        <div className="mb-4 inline-block h-12 w-12 animate-spin rounded-full border-4 border-blue-500 border-t-transparent"></div>
+                        <p className="text-slate-400">Loading devices...</p>
+                      </div>
                     </div>
-                    <p className="text-lg font-medium text-slate-300">No devices found</p>
-                    <p className="mt-2 text-sm text-slate-500">
-                      {searchQuery 
-                        ? "Try adjusting your search query"
-                        : selectedGroup 
-                          ? "No devices in this group yet"
-                          : "Start the agent on a device to register it"}
-                    </p>
-                  </CardContent>
-                </Card>
-              )}
+                  )}
 
-              {!loading && !error && filteredDevices.length > 0 && (
-                viewMode === "list" ? (
-                  <DeviceList 
-                    devices={filteredDevices} 
-                    groups={groups}
-                    onDelete={handleDeleteDevice}
-                    onLabelUpdate={handleLabelUpdate}
-                    onMoveToGroup={handleMoveToGroup}
-                  />
-                ) : (
-                  <DeviceGrid 
-                    devices={filteredDevices} 
-                    groups={groups}
-                    onDelete={handleDeleteDevice}
-                    onLabelUpdate={handleLabelUpdate}
-                    onMoveToGroup={handleMoveToGroup}
-                  />
-                )
+                  {error && (
+                    <Card className="border-red-500/20 bg-red-500/10">
+                      <CardContent className="p-6">
+                        <p className="text-red-400 font-medium">⚠️ {error}</p>
+                        <p className="mt-2 text-sm text-slate-400">
+                          Make sure the backend server is running
+                        </p>
+                        <Button
+                          variant="outline"
+                          onClick={loadDevices}
+                          className="mt-4 border-red-500/30 text-red-400 hover:bg-red-500/10"
+                        >
+                          <RefreshCw className="mr-2 h-4 w-4" />
+                          Retry
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {!loading && !error && filteredDevices.length === 0 && (
+                    <Card className="border-slate-700 bg-slate-900/30">
+                      <CardContent className="p-12 text-center">
+                        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-800 mx-auto mb-4">
+                          <Monitor className="h-8 w-8 text-slate-500" />
+                        </div>
+                        <p className="text-lg font-medium text-slate-300">No devices found</p>
+                        <p className="mt-2 text-sm text-slate-500">
+                          {searchQuery 
+                            ? "Try adjusting your search query"
+                            : selectedGroup 
+                              ? "No devices in this group yet"
+                              : "Start the agent on a device to register it"}
+                        </p>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {!loading && !error && filteredDevices.length > 0 && (
+                    viewMode === "list" ? (
+                      <DeviceList 
+                        devices={filteredDevices} 
+                        groups={groups}
+                        onDelete={handleDeleteDevice}
+                        onLabelUpdate={handleLabelUpdate}
+                        onMoveToGroup={handleMoveToGroup}
+                      />
+                    ) : (
+                      <DeviceGrid 
+                        devices={filteredDevices} 
+                        groups={groups}
+                        onDelete={handleDeleteDevice}
+                        onLabelUpdate={handleLabelUpdate}
+                        onMoveToGroup={handleMoveToGroup}
+                      />
+                    )
+                  )}
+                </>
               )}
             </div>
           </div>

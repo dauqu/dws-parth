@@ -69,13 +69,21 @@ export function FileManager({ deviceId, userId }: FileManagerProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(0)
   const [clipboard, setClipboard] = useState<{ path: string; name: string; action: 'copy' | 'cut' } | null>(null)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [viewDialogOpen, setViewDialogOpen] = useState(false)
   const [editingFile, setEditingFile] = useState<{ path: string; name: string; content: string } | null>(null)
   const [fileContent, setFileContent] = useState("")
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const uploadToastRef = useRef<{ id: string; dismiss: () => void } | null>(null)
+  const currentPathRef = useRef(currentPath) // Ref to track current path for callbacks
   const { toast } = useToast()
+
+  // Keep ref in sync with state
+  useEffect(() => {
+    currentPathRef.current = currentPath
+  }, [currentPath])
 
   useEffect(() => {
     console.log('📁 FileManager mounted for device:', deviceId)
@@ -103,8 +111,8 @@ export function FileManager({ deviceId, userId }: FileManagerProps) {
               title: "Success",
               description: successMessage,
             })
-            // Refresh the file list after operation
-            loadFiles(currentPath)
+            // Refresh the file list after operation - use ref to get current path
+            loadFiles(currentPathRef.current)
           } else {
             // Show error message
             const errorMessage = message.data.message || "Operation failed"
@@ -152,12 +160,13 @@ export function FileManager({ deviceId, userId }: FileManagerProps) {
       } else if (message.type === "file_upload_response") {
         console.log("📤 Upload response received")
         setIsUploading(false)
+        setUploadProgress(0)
         if (message.data && message.data.success) {
           toast({
-            title: "Upload Complete",
+            title: "Upload Complete ✓",
             description: message.data.message || "File uploaded successfully",
           })
-          loadFiles(currentPath)
+          loadFiles(currentPathRef.current)
         } else {
           toast({
             title: "Upload Failed",
@@ -298,14 +307,40 @@ export function FileManager({ deviceId, userId }: FileManagerProps) {
     if (!file || !wsService.isConnected()) return
 
     setIsUploading(true)
-    toast({
+    setUploadProgress(0)
+    
+    // Show initial toast with 0%
+    const toastResult = toast({
       title: "Uploading",
-      description: `Uploading ${file.name}...`,
+      description: `${file.name} - 0%`,
+      duration: 100000, // Long duration, we'll dismiss manually
     })
 
     try {
       const reader = new FileReader()
+      
+      // Track progress
+      reader.onprogress = (e) => {
+        if (e.lengthComputable) {
+          const percent = Math.round((e.loaded / e.total) * 100)
+          setUploadProgress(percent)
+          // Update toast with progress
+          toast({
+            title: "Uploading",
+            description: `${file.name} - ${percent}%`,
+            duration: 100000,
+          })
+        }
+      }
+      
       reader.onload = () => {
+        setUploadProgress(100)
+        toast({
+          title: "Uploading",
+          description: `${file.name} - 100% (Sending to device...)`,
+          duration: 5000,
+        })
+        
         const base64 = (reader.result as string).split(',')[1]
         wsService.send({
           type: "file_upload",
@@ -317,9 +352,21 @@ export function FileManager({ deviceId, userId }: FileManagerProps) {
           }
         })
       }
+      
+      reader.onerror = () => {
+        setIsUploading(false)
+        setUploadProgress(0)
+        toast({
+          title: "Upload Error",
+          description: "Failed to read file",
+          variant: "destructive",
+        })
+      }
+      
       reader.readAsDataURL(file)
     } catch (error) {
       setIsUploading(false)
+      setUploadProgress(0)
       toast({
         title: "Upload Error",
         description: "Failed to read file",

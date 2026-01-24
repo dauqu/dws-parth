@@ -29,17 +29,21 @@ export default function DeviceDetailPage({ params }: PageProps) {
     const mockDevice: Device = {
       id: resolvedParams.id,
       user_id: "default_user",
-      name: "Loading...",
-      hostname: "Loading...",
-      ip_address: "Loading...",
-      os_version: "Loading...",
+      name: resolvedParams.id, // Show device ID instead of "Loading..."
+      hostname: "-",
+      ip_address: "-",
+      os_version: "-",
       status: "online",
       connection_status: "connected",
       last_seen: new Date().toISOString(),
-      windows_username: "Loading...",
+      windows_username: "-",
       wallpaper_url: "/windows-11-gradient-purple.jpg",
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
+      label: "",
+      group_name: "",
+      is_deleted: false,
+      deleted_at: null,
     };
     
     setDevice(mockDevice);

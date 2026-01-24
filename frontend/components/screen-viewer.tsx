@@ -69,26 +69,39 @@ export function ScreenViewer({ deviceId, deviceName }: ScreenViewerProps) {
   const handleMouseClick = (e: React.MouseEvent<HTMLImageElement>) => {
     if (!controlEnabled) return
     const coords = getScaledCoords(e)
-    sendControl({ type: 'mouse', action: 'leftclick', ...coords })
+    // First move cursor to the clicked location, then click
+    sendControl({ type: 'mouse', action: 'move', ...coords })
+    setTimeout(() => {
+      sendControl({ type: 'mouse', action: 'leftclick', ...coords })
+    }, 10)
   }
 
   const handleMouseDoubleClick = (e: React.MouseEvent<HTMLImageElement>) => {
     if (!controlEnabled) return
     e.preventDefault()
     const coords = getScaledCoords(e)
-    sendControl({ type: 'mouse', action: 'doubleclick', ...coords })
+    // Move cursor first, then double click
+    sendControl({ type: 'mouse', action: 'move', ...coords })
+    setTimeout(() => {
+      sendControl({ type: 'mouse', action: 'doubleclick', ...coords })
+    }, 10)
   }
 
   const handleContextMenu = (e: React.MouseEvent<HTMLImageElement>) => {
     if (!controlEnabled) return
     e.preventDefault()
     const coords = getScaledCoords(e)
-    sendControl({ type: 'mouse', action: 'rightclick', ...coords })
+    // Move cursor first, then right click
+    sendControl({ type: 'mouse', action: 'move', ...coords })
+    setTimeout(() => {
+      sendControl({ type: 'mouse', action: 'rightclick', ...coords })
+    }, 10)
   }
 
   const handleMouseMove = (e: React.MouseEvent<HTMLImageElement>) => {
-    if (!controlEnabled || e.buttons === 0) return
+    if (!controlEnabled) return
     const coords = getScaledCoords(e)
+    // Always send move to show cursor position
     sendControl({ type: 'mouse', action: 'move', ...coords })
   }
 
@@ -530,7 +543,7 @@ export function ScreenViewer({ deviceId, deviceName }: ScreenViewerProps) {
             src={screenImage}
             alt="Remote screen"
             className="w-full h-full object-contain select-none outline-none"
-            style={{ cursor: controlEnabled ? 'crosshair' : 'default' }}
+            style={{ cursor: controlEnabled ? 'pointer' : 'default' }}
             draggable={false}
             tabIndex={0}
             onClick={handleMouseClick}

@@ -23,6 +23,7 @@ type WebRTCScreenSession struct {
 	isStreaming    bool
 	quality        int
 	fps            int
+	showCursor     bool
 	mutex          sync.Mutex
 	stopChan       chan bool
 	adaptiveMode   bool
@@ -91,6 +92,7 @@ func InitializeWebRTCWithOffer(sessionID string, offerSDP string, onICE func(can
 		isStreaming:    false,
 		quality:        75,
 		fps:            15, // Start with 15 FPS for data channel
+		showCursor:     true,
 		stopChan:       make(chan bool, 1),
 		adaptiveMode:   true,
 		onICECandidate: onICE,
@@ -139,6 +141,14 @@ func InitializeWebRTCWithOffer(sessionID string, offerSDP string, onICE func(can
 					if err := json.Unmarshal(msg.Data, &ctrl); err == nil {
 						log.Printf("⌨️ Keyboard: %s key=%d keyCode=%s", ctrl.Action, ctrl.Key, ctrl.KeyCode)
 						HandleKeyboardControl(ctrl)
+					}
+				case "settings":
+					action, _ := cmd["action"].(string)
+					if action == "cursor" {
+						if showCursor, ok := cmd["show_cursor"].(bool); ok {
+							session.showCursor = showCursor
+							log.Printf("🖱️ Remote cursor visibility set to: %v", showCursor)
+						}
 					}
 				}
 			})

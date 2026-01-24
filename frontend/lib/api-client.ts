@@ -1,8 +1,22 @@
 import { API_ENDPOINTS } from './api-config'
 import type { Device } from './types'
+import { getToken } from './auth'
+
+function getAuthHeaders(): HeadersInit {
+  const token = getToken()
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+  }
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
+  return headers
+}
 
 export async function fetchDevices(): Promise<Device[]> {
-  const response = await fetch(API_ENDPOINTS.devices)
+  const response = await fetch(API_ENDPOINTS.devices, {
+    headers: getAuthHeaders(),
+  })
   if (!response.ok) {
     throw new Error(`Failed to fetch devices: ${response.status} ${response.statusText}`)
   }
@@ -13,7 +27,9 @@ export async function fetchDevices(): Promise<Device[]> {
 }
 
 export async function fetchDevice(id: string): Promise<Device> {
-  const response = await fetch(API_ENDPOINTS.device(id))
+  const response = await fetch(API_ENDPOINTS.device(id), {
+    headers: getAuthHeaders(),
+  })
   if (!response.ok) {
     throw new Error(`Failed to fetch device: ${response.status} ${response.statusText}`)
   }
@@ -27,7 +43,7 @@ export async function fetchDevice(id: string): Promise<Device> {
 export async function registerDevice(name: string): Promise<Device> {
   const response = await fetch(API_ENDPOINTS.devices, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders(),
     body: JSON.stringify({ name }),
   })
   const data = await response.json()
@@ -41,7 +57,7 @@ export async function updateDeviceStatus(
 ): Promise<void> {
   await fetch(API_ENDPOINTS.device(id), {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders(),
     body: JSON.stringify({ status, connection_status: connectionStatus }),
   })
 }
@@ -52,7 +68,7 @@ export async function updateDeviceLabel(
 ): Promise<void> {
   await fetch(API_ENDPOINTS.device(id) + '/label', {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders(),
     body: JSON.stringify({ label }),
   })
 }
@@ -61,11 +77,14 @@ export async function deleteDevice(id: string): Promise<void> {
   // This now soft deletes (moves to bin)
   await fetch(API_ENDPOINTS.device(id), {
     method: 'DELETE',
+    headers: getAuthHeaders(),
   })
 }
 
 export async function fetchDeletedDevices(): Promise<Device[]> {
-  const response = await fetch(API_ENDPOINTS.binDevices)
+  const response = await fetch(API_ENDPOINTS.binDevices, {
+    headers: getAuthHeaders(),
+  })
   if (!response.ok) {
     throw new Error(`Failed to fetch deleted devices: ${response.status} ${response.statusText}`)
   }
@@ -77,12 +96,14 @@ export async function fetchDeletedDevices(): Promise<Device[]> {
 export async function restoreDevice(id: string): Promise<void> {
   await fetch(API_ENDPOINTS.restoreDevice(id), {
     method: 'POST',
+    headers: getAuthHeaders(),
   })
 }
 
 export async function permanentlyDeleteDevice(id: string): Promise<void> {
   await fetch(API_ENDPOINTS.permanentlyDeleteDevice(id), {
     method: 'DELETE',
+    headers: getAuthHeaders(),
   })
 }
 
@@ -134,7 +155,9 @@ export function sendWebSocketMessage(ws: WebSocket, type: string, data: any) {
 // Group API functions
 export async function fetchGroups() {
   try {
-    const response = await fetch(API_ENDPOINTS.groups)
+    const response = await fetch(API_ENDPOINTS.groups, {
+      headers: getAuthHeaders(),
+    })
     if (!response.ok) {
       throw new Error(`Failed to fetch groups: ${response.status} ${response.statusText}`)
     }
@@ -151,7 +174,7 @@ export async function createGroup(name: string, description: string = '') {
   try {
     const response = await fetch(API_ENDPOINTS.groups, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify({ name, description }),
     })
     if (!response.ok) {
@@ -171,6 +194,7 @@ export async function deleteGroup(id: string) {
   try {
     const response = await fetch(API_ENDPOINTS.group(id), {
       method: 'DELETE',
+      headers: getAuthHeaders(),
     })
     if (!response.ok) {
       throw new Error(`Failed to delete group: ${response.statusText}`)

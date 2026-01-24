@@ -12,6 +12,7 @@ import (
 
 var (
 	mongoClient        *mongo.Client
+	db                 *mongo.Database
 	devicesCollection  *mongo.Collection
 	sessionsCollection *mongo.Collection
 	groupsCollection   *mongo.Collection
@@ -36,7 +37,7 @@ func InitDatabase() error {
 	}
 
 	mongoClient = client
-	db := client.Database("device_management")
+	db = client.Database("device_management")
 	devicesCollection = db.Collection("devices")
 	sessionsCollection = db.Collection("sessions")
 	groupsCollection = db.Collection("groups")

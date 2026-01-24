@@ -64,7 +64,7 @@ func CreateFile(path string, content string) error {
 }
 
 func DeleteFile(path string) error {
-	return os.Remove(path)
+	return os.RemoveAll(path)
 }
 
 func CreateDirectory(path string) error {

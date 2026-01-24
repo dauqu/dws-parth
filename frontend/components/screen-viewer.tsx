@@ -8,7 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Monitor, MousePointer, Expand, Shrink, Settings, Wifi, WifiOff, X, Play, Square, MoreVertical, Maximize2 } from "lucide-react"
+import { Monitor, MousePointer, Expand, Shrink, Settings, Wifi, WifiOff, X, Play, Square, MoreVertical, Maximize2, Eye, EyeOff, GripHorizontal, Ban } from "lucide-react"
 import { API_ENDPOINTS } from "@/lib/api-config"
 
 interface ScreenViewerProps {
@@ -20,7 +20,15 @@ export function ScreenViewer({ deviceId, deviceName }: ScreenViewerProps) {
   const [isStreaming, setIsStreaming] = useState(false)
   const [controlEnabled, setControlEnabled] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [isNativeFullscreen, setIsNativeFullscreen] = useState(false)
+  const [controlsHidden, setControlsHidden] = useState(false)
+  const [toolbarPosition, setToolbarPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
+  const [isDragging, setIsDragging] = useState(false)
+  const dragStartRef = useRef<{ x: number; y: number; posX: number; posY: number } | null>(null)
   const [ws, setWs] = useState<WebSocket | null>(null)
+
+  // Combined check for any fullscreen mode
+  const isAnyFullscreen = isFullscreen || isNativeFullscreen
   
   // WebRTC State
   const [useWebRTC, setUseWebRTC] = useState(true)
@@ -37,6 +45,7 @@ export function ScreenViewer({ deviceId, deviceName }: ScreenViewerProps) {
   const [fps, setFps] = useState<number>(30)
   const [showCursor, setShowCursor] = useState<boolean>(true)
   const [networkStatus, setNetworkStatus] = useState<'good' | 'medium' | 'slow'>('good')
+  const [hideCursor, setHideCursor] = useState(false)
   
   const canvasRef = useRef<HTMLImageElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -49,6 +58,14 @@ export function ScreenViewer({ deviceId, deviceName }: ScreenViewerProps) {
     if (channel && channel.readyState === 'open') {
       channel.send(JSON.stringify(command))
     }
+  }
+
+  // Toggle remote cursor visibility
+  const toggleRemoteCursor = () => {
+    const newShowCursor = !showCursor
+    setShowCursor(newShowCursor)
+    // Send command to agent to toggle cursor visibility in screen capture
+    sendControl({ type: 'settings', action: 'cursor', show_cursor: newShowCursor })
   }
 
   // Calculate scaled coordinates
@@ -69,26 +86,39 @@ export function ScreenViewer({ deviceId, deviceName }: ScreenViewerProps) {
   const handleMouseClick = (e: React.MouseEvent<HTMLImageElement>) => {
     if (!controlEnabled) return
     const coords = getScaledCoords(e)
-    sendControl({ type: 'mouse', action: 'leftclick', ...coords })
+    // First move cursor to the clicked location, then click
+    sendControl({ type: 'mouse', action: 'move', ...coords })
+    setTimeout(() => {
+      sendControl({ type: 'mouse', action: 'leftclick', ...coords })
+    }, 10)
   }
 
   const handleMouseDoubleClick = (e: React.MouseEvent<HTMLImageElement>) => {
     if (!controlEnabled) return
     e.preventDefault()
     const coords = getScaledCoords(e)
-    sendControl({ type: 'mouse', action: 'doubleclick', ...coords })
+    // Move cursor first, then double click
+    sendControl({ type: 'mouse', action: 'move', ...coords })
+    setTimeout(() => {
+      sendControl({ type: 'mouse', action: 'doubleclick', ...coords })
+    }, 10)
   }
 
   const handleContextMenu = (e: React.MouseEvent<HTMLImageElement>) => {
     if (!controlEnabled) return
     e.preventDefault()
     const coords = getScaledCoords(e)
-    sendControl({ type: 'mouse', action: 'rightclick', ...coords })
+    // Move cursor first, then right click
+    sendControl({ type: 'mouse', action: 'move', ...coords })
+    setTimeout(() => {
+      sendControl({ type: 'mouse', action: 'rightclick', ...coords })
+    }, 10)
   }
 
   const handleMouseMove = (e: React.MouseEvent<HTMLImageElement>) => {
-    if (!controlEnabled || e.buttons === 0) return
+    if (!controlEnabled) return
     const coords = getScaledCoords(e)
+    // Always send move to show cursor position
     sendControl({ type: 'mouse', action: 'move', ...coords })
   }
 
@@ -386,34 +416,132 @@ export function ScreenViewer({ deviceId, deviceName }: ScreenViewerProps) {
     setPeerConnection(null)
   }
 
-  // Use browser fullscreen API
+  // Toggle in-browser fullscreen (fills viewport)
   const toggleFullscreen = () => {
-    if (!isFullscreen && containerRef.current) {
-      if (containerRef.current.requestFullscreen) {
-        containerRef.current.requestFullscreen()
-      }
-      setIsFullscreen(true)
-    } else {
-      if (document.exitFullscreen) {
-        document.exitFullscreen()
-      }
-      setIsFullscreen(false)
+    setIsFullscreen(prev => !prev)
+    if (isFullscreen) {
+      setControlsHidden(false)
+      setToolbarPosition({ x: 0, y: 0 }) // Reset position when exiting
     }
   }
 
-  // Listen for fullscreen changes
+  // Draggable toolbar handlers
+  const handleDragStart = (e: React.MouseEvent) => {
+    if (!isFullscreen) return
+    e.preventDefault()
+    setIsDragging(true)
+    dragStartRef.current = {
+      x: e.clientX,
+      y: e.clientY,
+      posX: toolbarPosition.x,
+      posY: toolbarPosition.y
+    }
+  }
+
+  useEffect(() => {
+    if (!isDragging) return
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!dragStartRef.current) return
+      const deltaX = e.clientX - dragStartRef.current.x
+      const deltaY = e.clientY - dragStartRef.current.y
+      setToolbarPosition({
+        x: dragStartRef.current.posX + deltaX,
+        y: dragStartRef.current.posY + deltaY
+      })
+    }
+
+    const handleMouseUp = () => {
+      setIsDragging(false)
+      dragStartRef.current = null
+    }
+
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [isDragging])
+
+  // Handle Escape key to exit fullscreen
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isFullscreen) {
+        setIsFullscreen(false)
+        setControlsHidden(false)
+      }
+    }
+    document.addEventListener('keydown', handleEscape)
+    return () => document.removeEventListener('keydown', handleEscape)
+  }, [isFullscreen])
+
+  // Detect native fullscreen changes
   useEffect(() => {
     const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement)
+      setIsNativeFullscreen(!!document.fullscreenElement)
+      if (!document.fullscreenElement) {
+        setControlsHidden(false)
+      }
     }
     document.addEventListener('fullscreenchange', handleFullscreenChange)
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange)
   }, [])
 
+  // Handle keyboard shortcut for hiding/showing controls in fullscreen
+  useEffect(() => {
+    const handleKeyPress = (e: KeyboardEvent) => {
+      // Press 'H' to toggle controls visibility in fullscreen
+      if (isAnyFullscreen && e.key.toLowerCase() === 'h' && !controlEnabled) {
+        setControlsHidden(prev => !prev)
+      }
+    }
+    document.addEventListener('keydown', handleKeyPress)
+    return () => document.removeEventListener('keydown', handleKeyPress)
+  }, [isAnyFullscreen, controlEnabled])
+
+  // Show controls when mouse moves to top of screen in fullscreen
+  useEffect(() => {
+    if (!isAnyFullscreen || !controlsHidden) return
+    
+    const handleMouseMove = (e: MouseEvent) => {
+      // Show controls when mouse is within 50px of top edge
+      if (e.clientY <= 50) {
+        setControlsHidden(false)
+      }
+    }
+    document.addEventListener('mousemove', handleMouseMove)
+    return () => document.removeEventListener('mousemove', handleMouseMove)
+  }, [isAnyFullscreen, controlsHidden])
+
+  const toggleControlsVisibility = () => {
+    if (isAnyFullscreen) {
+      setControlsHidden(prev => !prev)
+    }
+  }
+
   return (
-    <div ref={containerRef} className={`flex flex-col h-full ${isFullscreen ? 'bg-black' : ''}`}>
-      {/* Compact Toolbar */}
-      <div className={`flex items-center justify-between h-10 px-3 shrink-0 ${isFullscreen ? 'bg-black/80 backdrop-blur-sm absolute top-0 left-0 right-0 z-10' : 'bg-[#111111] border-b border-slate-800'} rounded-t-lg`}>
+    <div ref={containerRef} className={`flex flex-col ${isAnyFullscreen ? 'fixed inset-0 z-50 bg-black' : 'h-full'}`}>
+      {/* Compact Toolbar - draggable and hideable in fullscreen */}
+      <div 
+        className={`flex items-center justify-between h-10 px-3 shrink-0 ${isAnyFullscreen ? 'bg-black/90 backdrop-blur-sm absolute z-10 rounded-lg border border-slate-700 shadow-lg' : 'bg-[#111111] border-b border-slate-800'} ${controlsHidden && isAnyFullscreen ? 'opacity-0 pointer-events-none' : 'opacity-100'} transition-opacity duration-300 ${isAnyFullscreen ? '' : 'rounded-t-lg'}`}
+        style={isAnyFullscreen ? { 
+          left: `calc(50% + ${toolbarPosition.x}px)`, 
+          top: `${16 + toolbarPosition.y}px`,
+          transform: 'translateX(-50%)',
+          width: 'auto',
+          minWidth: '400px'
+        } : undefined}
+      >
+        {/* Drag Handle - in any fullscreen mode, bigger area for dragging */}
+        {isAnyFullscreen && (
+          <div 
+            className="flex items-center px-3 py-2 -ml-1 cursor-grab active:cursor-grabbing text-slate-500 hover:text-slate-300 hover:bg-slate-700/50 rounded-l-lg transition-colors"
+            onMouseDown={handleDragStart}
+          >
+            <GripHorizontal className="h-5 w-5" />
+          </div>
+        )}
         {/* Left - Status */}
         <div className="flex items-center gap-2">
           {isStreaming && (
@@ -439,12 +567,12 @@ export function ScreenViewer({ deviceId, deviceName }: ScreenViewerProps) {
               <Button
                 variant="ghost"
                 size="sm"
-                className={`h-7 px-2 text-xs ${controlEnabled ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                className={`h-7 ${isAnyFullscreen ? 'w-7 p-0' : 'px-2'} text-xs ${controlEnabled ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}
                 onClick={() => setControlEnabled(!controlEnabled)}
                 title={controlEnabled ? "Disable remote control" : "Enable remote control"}
               >
-                <MousePointer className="h-3 w-3 mr-1" />
-                Control
+                <MousePointer className={`h-3 w-3 ${isAnyFullscreen ? '' : 'mr-1'}`} />
+                {!isAnyFullscreen && 'Control'}
               </Button>
 
               {/* Network Status */}
@@ -460,9 +588,9 @@ export function ScreenViewer({ deviceId, deviceName }: ScreenViewerProps) {
                 size="sm"
                 className="h-7 w-7 p-0 text-slate-400 hover:text-white"
                 onClick={toggleFullscreen}
-                title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+                title={isAnyFullscreen ? "Exit fullscreen" : "Fullscreen"}
               >
-                {isFullscreen ? <Shrink className="h-3.5 w-3.5" /> : <Expand className="h-3.5 w-3.5" />}
+                {isAnyFullscreen ? <Shrink className="h-3.5 w-3.5" /> : <Expand className="h-3.5 w-3.5" />}
               </Button>
 
               {/* Settings Dropdown */}
@@ -472,7 +600,43 @@ export function ScreenViewer({ deviceId, deviceName }: ScreenViewerProps) {
                     <MoreVertical className="h-3.5 w-3.5" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-40 border-slate-700 bg-slate-800">
+                <DropdownMenuContent align="end" className="w-48 border-slate-700 bg-slate-800">
+                  {isAnyFullscreen && (
+                    <DropdownMenuItem
+                      className="text-xs text-slate-300 hover:text-white"
+                      onClick={toggleControlsVisibility}
+                    >
+                      <EyeOff className="h-3 w-3 mr-2" />
+                      Hide Controls (H)
+                    </DropdownMenuItem>
+                  )}
+                  {isAnyFullscreen && (
+                    <DropdownMenuItem
+                      className="text-xs text-slate-300 hover:text-white"
+                      onClick={() => {
+                        if (containerRef.current?.requestFullscreen) {
+                          containerRef.current.requestFullscreen()
+                        }
+                      }}
+                    >
+                      <Maximize2 className="h-3 w-3 mr-2" />
+                      Native Fullscreen
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem
+                    className="text-xs text-slate-300 hover:text-white"
+                    onClick={() => setHideCursor(prev => !prev)}
+                  >
+                    {hideCursor ? <MousePointer className="h-3 w-3 mr-2" /> : <Ban className="h-3 w-3 mr-2" />}
+                    {hideCursor ? 'Show Local Cursor' : 'Hide Local Cursor'}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="text-xs text-slate-300 hover:text-white"
+                    onClick={toggleRemoteCursor}
+                  >
+                    {showCursor ? <Ban className="h-3 w-3 mr-2" /> : <MousePointer className="h-3 w-3 mr-2" />}
+                    {showCursor ? 'Hide Remote Cursor' : 'Show Remote Cursor'}
+                  </DropdownMenuItem>
                   <DropdownMenuItem
                     className={`text-xs ${useWebRTC ? 'text-blue-400' : 'text-slate-300'}`}
                     onClick={() => setUseWebRTC(true)}
@@ -513,7 +677,7 @@ export function ScreenViewer({ deviceId, deviceName }: ScreenViewerProps) {
       </div>
 
       {/* Screen Container - fills available space */}
-      <div className={`flex-1 bg-[#0a0a0a] ${isFullscreen ? '' : 'rounded-b-lg'} overflow-hidden flex items-center justify-center`}>
+      <div className={`flex-1 bg-[#0a0a0a] ${isAnyFullscreen ? '' : 'rounded-b-lg'} overflow-hidden flex items-center justify-center`}>
         {!isStreaming ? (
           <div className="flex flex-col items-center justify-center gap-4 text-center">
             <div className="h-20 w-20 rounded-2xl bg-slate-800/50 flex items-center justify-center">
@@ -530,7 +694,7 @@ export function ScreenViewer({ deviceId, deviceName }: ScreenViewerProps) {
             src={screenImage}
             alt="Remote screen"
             className="w-full h-full object-contain select-none outline-none"
-            style={{ cursor: controlEnabled ? 'crosshair' : 'default' }}
+            style={{ cursor: hideCursor ? 'none' : (controlEnabled ? 'pointer' : 'default') }}
             draggable={false}
             tabIndex={0}
             onClick={handleMouseClick}

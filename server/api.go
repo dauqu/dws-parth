@@ -12,6 +12,43 @@ import (
 
 // REST API Handlers
 
+// Auth middleware
+func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Skip auth for login endpoint
+		if r.URL.Path == "/api/login" {
+			next(w, r)
+			return
+		}
+
+		_, err := verifyToken(r)
+		if err != nil {
+			http.Error(w, `{"error": "Unauthorized"}`, http.StatusUnauthorized)
+			return
+		}
+
+		next(w, r)
+	}
+}
+
+// Admin middleware
+func AdminMiddleware(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		claims, err := verifyToken(r)
+		if err != nil {
+			http.Error(w, `{"error": "Unauthorized"}`, http.StatusUnauthorized)
+			return
+		}
+
+		if claims.Role != "admin" {
+			http.Error(w, `{"error": "Forbidden: Admin only"}`, http.StatusForbidden)
+			return
+		}
+
+		next(w, r)
+	}
+}
+
 func HandleAPIGetDevices(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 

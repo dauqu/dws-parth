@@ -709,30 +709,44 @@ func main() {
 	if err := InitDatabase(); err != nil {
 		log.Printf("⚠️  Database connection failed: %v", err)
 		log.Println("📝 Running in LOCAL MODE (no database persistence)")
+	} else {
+		// Initialize default admin user
+		if err := InitializeDefaultAdmin(); err != nil {
+			log.Printf("⚠️  Failed to initialize admin: %v", err)
+		}
 	}
 
 	// Setup router
 	router := mux.NewRouter()
 
-	// Device endpoints - use hub's live device list
-	router.HandleFunc("/api/devices", handleGetDevices).Methods("GET", "OPTIONS")
-	router.HandleFunc("/api/devices/{id}", handleGetDevice).Methods("GET", "OPTIONS")
-	router.HandleFunc("/api/devices/{id}", handleDeleteDevice).Methods("DELETE", "OPTIONS")
-	router.HandleFunc("/api/devices/{id}/group", handleUpdateDeviceGroup).Methods("PATCH", "OPTIONS")
-	router.HandleFunc("/api/devices/{id}/label", HandleAPIUpdateDeviceLabel).Methods("PATCH", "OPTIONS")
+	// Auth endpoints (no auth required)
+	router.HandleFunc("/api/login", HandleLogin).Methods("POST", "OPTIONS")
+	router.HandleFunc("/api/verify", HandleVerifyUser).Methods("GET", "OPTIONS")
 
-	// Bin/Trash management endpoints
-	router.HandleFunc("/api/bin/devices", HandleAPIGetDeletedDevices).Methods("GET", "OPTIONS")
-	router.HandleFunc("/api/bin/devices/{id}/restore", HandleAPIRestoreDevice).Methods("POST", "OPTIONS")
-	router.HandleFunc("/api/bin/devices/{id}", HandleAPIPermanentlyDeleteDevice).Methods("DELETE", "OPTIONS")
+	// User management endpoints (admin only)
+	router.HandleFunc("/api/users", AdminMiddleware(HandleListUsers)).Methods("GET", "OPTIONS")
+	router.HandleFunc("/api/users", AdminMiddleware(HandleCreateUser)).Methods("POST", "OPTIONS")
+	router.HandleFunc("/api/users", AdminMiddleware(HandleDeleteUser)).Methods("DELETE", "OPTIONS")
 
-	// Group management endpoints (from api.go)
-	router.HandleFunc("/api/groups", HandleAPIGetGroups).Methods("GET", "OPTIONS")
-	router.HandleFunc("/api/groups", HandleAPICreateGroup).Methods("POST", "OPTIONS")
-	router.HandleFunc("/api/groups/{id}", HandleAPIGetGroup).Methods("GET", "OPTIONS")
-	router.HandleFunc("/api/groups/{id}", HandleAPIUpdateGroup).Methods("PUT", "OPTIONS")
-	router.HandleFunc("/api/groups/{id}", HandleAPIDeleteGroup).Methods("DELETE", "OPTIONS")
-	router.HandleFunc("/api/groups/{name}/devices", HandleAPIGetGroupDevices).Methods("GET", "OPTIONS")
+	// Device endpoints - protected
+	router.HandleFunc("/api/devices", AuthMiddleware(handleGetDevices)).Methods("GET", "OPTIONS")
+	router.HandleFunc("/api/devices/{id}", AuthMiddleware(handleGetDevice)).Methods("GET", "OPTIONS")
+	router.HandleFunc("/api/devices/{id}", AdminMiddleware(handleDeleteDevice)).Methods("DELETE", "OPTIONS")
+	router.HandleFunc("/api/devices/{id}/group", AuthMiddleware(handleUpdateDeviceGroup)).Methods("PATCH", "OPTIONS")
+	router.HandleFunc("/api/devices/{id}/label", AuthMiddleware(HandleAPIUpdateDeviceLabel)).Methods("PATCH", "OPTIONS")
+
+	// Bin/Trash management endpoints - admin only
+	router.HandleFunc("/api/bin/devices", AuthMiddleware(HandleAPIGetDeletedDevices)).Methods("GET", "OPTIONS")
+	router.HandleFunc("/api/bin/devices/{id}/restore", AdminMiddleware(HandleAPIRestoreDevice)).Methods("POST", "OPTIONS")
+	router.HandleFunc("/api/bin/devices/{id}", AdminMiddleware(HandleAPIPermanentlyDeleteDevice)).Methods("DELETE", "OPTIONS")
+
+	// Group management endpoints - protected
+	router.HandleFunc("/api/groups", AuthMiddleware(HandleAPIGetGroups)).Methods("GET", "OPTIONS")
+	router.HandleFunc("/api/groups", AdminMiddleware(HandleAPICreateGroup)).Methods("POST", "OPTIONS")
+	router.HandleFunc("/api/groups/{id}", AuthMiddleware(HandleAPIGetGroup)).Methods("GET", "OPTIONS")
+	router.HandleFunc("/api/groups/{id}", AdminMiddleware(HandleAPIUpdateGroup)).Methods("PUT", "OPTIONS")
+	router.HandleFunc("/api/groups/{id}", AdminMiddleware(HandleAPIDeleteGroup)).Methods("DELETE", "OPTIONS")
+	router.HandleFunc("/api/groups/{name}/devices", AuthMiddleware(HandleAPIGetGroupDevices)).Methods("GET", "OPTIONS")
 
 	// WebSocket endpoints
 	router.HandleFunc("/ws/client", handleAgentWebSocket)      // For Windows agents
@@ -759,6 +773,9 @@ func main() {
 		log.Println("   - Agent WS:    ws://localhost:8080/ws/client")
 		log.Println("   - Frontend WS: ws://localhost:8080/ws/frontend")
 		log.Println("   - REST API:    http://localhost:8080/api")
+		log.Println("   - Login:       POST http://localhost:8080/api/login")
+		log.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+		log.Println("📧 Default Admin: admin@admin.com / admin123")
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("❌ Server error: %v", err)
 		}

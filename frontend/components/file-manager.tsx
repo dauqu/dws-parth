@@ -87,20 +87,38 @@ export function FileManager({ deviceId, userId }: FileManagerProps) {
       }
       
       if (message.type === "file_response") {
-        console.log("📁 Files received:", message.data)
-        if (message.data && message.data.success && message.data.data) {
-          setFiles(message.data.data || [])
-        } else {
-          setFiles([])
-          if (message.data?.message) {
+        console.log("📁 File operation response:", message.data)
+        
+        // Handle list operation
+        if (message.data && message.data.data && Array.isArray(message.data.data)) {
+          setFiles(message.data.data)
+          setIsLoading(false)
+        } 
+        // Handle other file operations (delete, mkdir, move, copy, create)
+        else if (message.data) {
+          if (message.data.success) {
+            // Show success message for non-list operations
+            const successMessage = message.data.message || "Operation completed successfully"
             toast({
-              title: "Error",
-              description: message.data.message,
+              title: "Success",
+              description: successMessage,
+            })
+            // Refresh the file list after operation
+            loadFiles(currentPath)
+          } else {
+            // Show error message
+            const errorMessage = message.data.message || "Operation failed"
+            toast({
+              title: "Operation Failed",
+              description: errorMessage,
               variant: "destructive",
             })
           }
+          setIsLoading(false)
+        } else {
+          setFiles([])
+          setIsLoading(false)
         }
-        setIsLoading(false)
       } else if (message.type === "file_download_response") {
         console.log("📥 Download response received")
         if (message.data && message.data.success && message.data.content) {
@@ -137,7 +155,7 @@ export function FileManager({ deviceId, userId }: FileManagerProps) {
         if (message.data && message.data.success) {
           toast({
             title: "Upload Complete",
-            description: "File uploaded successfully",
+            description: message.data.message || "File uploaded successfully",
           })
           loadFiles(currentPath)
         } else {
@@ -152,9 +170,10 @@ export function FileManager({ deviceId, userId }: FileManagerProps) {
         if (message.data && message.data.success) {
           setFileContent(message.data.data || "")
         } else {
+          const errorMessage = message.data?.message || "Failed to read file"
           toast({
             title: "Read Failed",
-            description: message.data?.message || "Failed to read file",
+            description: errorMessage,
             variant: "destructive",
           })
           setEditDialogOpen(false)
@@ -165,14 +184,15 @@ export function FileManager({ deviceId, userId }: FileManagerProps) {
         if (message.data && message.data.success) {
           toast({
             title: "File Saved",
-            description: "File saved successfully",
+            description: message.data.message || "File saved successfully",
           })
           setEditDialogOpen(false)
           setEditingFile(null)
         } else {
+          const errorMessage = message.data?.message || "Failed to save file"
           toast({
             title: "Save Failed",
-            description: message.data?.message || "Failed to save file",
+            description: errorMessage,
             variant: "destructive",
           })
         }
@@ -249,13 +269,6 @@ export function FileManager({ deviceId, userId }: FileManagerProps) {
         path: filePath
       }
     })
-
-    toast({
-      title: "Deleting",
-      description: "File deletion requested",
-    })
-
-    setTimeout(() => loadFiles(currentPath), 1000)
   }
 
   const handleDownloadFile = (filePath: string, fileName: string) => {
@@ -333,13 +346,6 @@ export function FileManager({ deviceId, userId }: FileManagerProps) {
         path: newPath
       }
     })
-
-    toast({
-      title: "Creating Folder",
-      description: `Creating ${folderName}...`,
-    })
-
-    setTimeout(() => loadFiles(currentPath), 1000)
   }
 
   const handleRenameFile = (filePath: string, oldName: string) => {
@@ -359,13 +365,6 @@ export function FileManager({ deviceId, userId }: FileManagerProps) {
         new_path: newPath
       }
     })
-
-    toast({
-      title: "Renaming",
-      description: `Renaming to ${newName}...`,
-    })
-
-    setTimeout(() => loadFiles(currentPath), 1000)
   }
 
   const handleCopyFile = (filePath: string, fileName: string) => {
@@ -400,16 +399,9 @@ export function FileManager({ deviceId, userId }: FileManagerProps) {
       }
     })
 
-    toast({
-      title: clipboard.action === 'copy' ? "Copying" : "Moving",
-      description: `${clipboard.action === 'copy' ? 'Copying' : 'Moving'} ${clipboard.name}...`,
-    })
-
     if (clipboard.action === 'cut') {
       setClipboard(null)
     }
-
-    setTimeout(() => loadFiles(currentPath), 1000)
   }
 
   const handleViewFile = (filePath: string, fileName: string) => {
@@ -474,13 +466,6 @@ export function FileManager({ deviceId, userId }: FileManagerProps) {
         content: ""
       }
     })
-
-    toast({
-      title: "Creating File",
-      description: `Creating ${fileName}...`,
-    })
-
-    setTimeout(() => loadFiles(currentPath), 1000)
   }
 
   const filteredFiles = files.filter(

@@ -4,6 +4,8 @@ import { use, useEffect, useState } from "react";
 import { DeviceDetailLayout } from "@/components/device-detail-layout";
 import { DashboardHeader } from "@/components/dashboard-header";
 import type { Device } from "@/lib/types";
+import { isAuthenticated } from "@/lib/auth";
+import { useRouter } from "next/navigation";
 
 /**
  * App Router page props
@@ -19,8 +21,16 @@ interface PageProps {
  */
 export default function DeviceDetailPage({ params }: PageProps) {
   const resolvedParams = use(params);
+  const router = useRouter();
   const [device, setDevice] = useState<Device | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Check authentication on mount
+  useEffect(() => {
+    if (!isAuthenticated()) {
+      router.push('/login');
+    }
+  }, [router]);
 
   useEffect(() => {
     console.log('Device page mounted for ID:', resolvedParams.id);

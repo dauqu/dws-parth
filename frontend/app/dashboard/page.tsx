@@ -39,6 +39,7 @@ import {
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
+import { isAuthenticated } from "@/lib/auth"
 
 export default function DashboardPage() {
   const [devices, setDevices] = useState<Device[]>([])
@@ -55,6 +56,13 @@ export default function DashboardPage() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
   const { toast } = useToast()
   const router = useRouter()
+
+  // Check authentication on mount
+  useEffect(() => {
+    if (!isAuthenticated()) {
+      router.push('/login')
+    }
+  }, [router])
 
   useEffect(() => {
     loadDevices()

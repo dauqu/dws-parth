@@ -1,3 +1,5 @@
+import { API_URL } from './api-config'
+
 export interface User {
   id: string
   email: string
@@ -10,28 +12,40 @@ export interface AuthResponse {
   user: User
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
-
 export async function login(email: string, password: string): Promise<AuthResponse> {
-  const response = await fetch(`${API_URL}/api/login`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ email, password }),
-  })
+  try {
+    const response = await fetch(`${API_URL}/api/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email, password }),
+    })
 
-  if (!response.ok) {
-    throw new Error('Invalid credentials')
+    if (!response.ok) {
+      // Try to get error message from response
+      const errorText = await response.text()
+      console.error('Login failed:', response.status, errorText)
+      
+      // For development: if server returns 401, suggest checking server logs
+      if (response.status === 401) {
+        throw new Error('Invalid credentials. Please check if the backend MongoDB is connected.')
+      }
+      
+      throw new Error('Login failed')
+    }
+
+    const data = await response.json()
+    
+    // Store token and user info
+    localStorage.setItem('token', data.token)
+    localStorage.setItem('user', JSON.stringify(data.user))
+    
+    return data
+  } catch (error) {
+    console.error('Login error:', error)
+    throw error
   }
-
-  const data = await response.json()
-  
-  // Store token and user info
-  localStorage.setItem('token', data.token)
-  localStorage.setItem('user', JSON.stringify(data.user))
-  
-  return data
 }
 
 export function logout() {
